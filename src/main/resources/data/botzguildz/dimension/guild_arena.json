@@ -1,0 +1,10 @@
+{
+  "type": "botzguildz:guild_arena",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "layers": [],
+      "biome": "minecraft:the_void"
+    }
+  }
+}
