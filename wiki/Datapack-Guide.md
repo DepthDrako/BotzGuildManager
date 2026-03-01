@@ -246,6 +246,15 @@ If validation fails, the mod falls back to the built-in demo data until the erro
 
 ---
 
+## FTB Chunks — Chunk Claim Upgrades
+
+If your server uses FTB Chunks, you can grant guilds extra chunk claim and force-load slots through upgrades. This requires using specific upgrade IDs that the mod recognises.
+
+See the **[FTB Integration](FTB-Integration#adding-chunk-upgrades-in-a-datapack)** page for full JSON examples and both approaches (built-in IDs vs custom ID + COMMAND effect).
+
+---
+
 ## See Also
 - [Upgrade System](Upgrade-System)
+- [FTB Integration](FTB-Integration)
 - [Configuration](Configuration)

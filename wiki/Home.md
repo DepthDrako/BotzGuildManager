@@ -21,8 +21,9 @@ Welcome to the BotzGuildz wiki! This mod adds a full guild system to your Minecr
 - **[Datapack Guide](Datapack-Guide)** — Create your own custom upgrades with JSON
 - **[Leaderboards](Leaderboards)** — Guild and player rankings
 
-### Other
+### Integrations & Other
 - **[Alliances](Alliances)** — Mutual partnerships between guilds
+- **[FTB Integration](FTB-Integration)** — FTB Teams/Chunks/Quests sync and chunk claim upgrades
 - **[Configuration](Configuration)** — Server config reference (`botzguildz-server.toml`)
 
 ---
@@ -34,7 +35,9 @@ Welcome to the BotzGuildz wiki! This mod adds a full guild system to your Minecr
 | Minecraft | 1.20.1 |
 | Forge | 47.4.16+ |
 | Java | 17+ |
+| FTB Teams *(optional)* | Any compatible version |
 | FTB Chunks *(optional)* | Any compatible version |
+| FTB Quests *(optional)* | Any compatible version |
 
 ---
 
