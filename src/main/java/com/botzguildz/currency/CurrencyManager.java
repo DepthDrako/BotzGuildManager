@@ -2,6 +2,7 @@ package com.botzguildz.currency;
 
 import com.botzguildz.BotzGuildz;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.fml.ModList;
 
 /**
@@ -43,5 +44,6 @@ public class CurrencyManager {
     public static String format(long amount)                        { return get().format(amount); }
     public static String currencyName()                             { return get().currencyName(); }
 
+    public static ItemStack getDisplayItem()                        { return get().getDisplayItem(); }
     public static boolean isNumismatics() { return provider instanceof NumismaticsProvider; }
 }

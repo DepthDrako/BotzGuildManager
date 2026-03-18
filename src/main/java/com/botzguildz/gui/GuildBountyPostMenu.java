@@ -1,6 +1,8 @@
 package com.botzguildz.gui;
 
 import com.botzguildz.currency.CurrencyManager;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import com.botzguildz.data.Guild;
 import com.botzguildz.data.GuildBountyData;
 import com.botzguildz.data.GuildSavedData;
@@ -138,7 +140,7 @@ public class GuildBountyPostMenu extends ChestMenu {
             Guild guild = GuildUtils.getGuildOf(sp);
             long available = guild != null ? guild.getAvailableBalance() : 0;
             boolean canAfford = available >= rewardAmount && rewardAmount > 0;
-            ItemStack info = new ItemStack(canAfford ? Items.GOLD_INGOT : Items.GOLD_NUGGET);
+            ItemStack info = CurrencyManager.getDisplayItem();
             info.setHoverName(styled("Guild Bank", ChatFormatting.GOLD));
             appendLore(info, lore("Available: " + CurrencyManager.format(available), ChatFormatting.YELLOW));
             appendLore(info, lore("Reward cost: " + CurrencyManager.format(rewardAmount),
@@ -181,21 +183,26 @@ public class GuildBountyPostMenu extends ChestMenu {
 
     private void handleClick(int slotId, ServerPlayer player) {
         switch (slotId) {
-            case QTY_MINUS10 -> { quantity = Math.max(QTY_MIN, quantity - 10);  populateItems(player); }
-            case QTY_MINUS1  -> { quantity = Math.max(QTY_MIN, quantity - 1);   populateItems(player); }
-            case QTY_PLUS1   -> { quantity = Math.min(QTY_MAX, quantity + 1);   populateItems(player); }
-            case QTY_PLUS10  -> { quantity = Math.min(QTY_MAX, quantity + 10);  populateItems(player); }
-            case REW_MINUS1000 -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 1000); populateItems(player); }
-            case REW_MINUS100  -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 100);  populateItems(player); }
-            case REW_MINUS10   -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 10);   populateItems(player); }
-            case REW_MINUS1    -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 1);    populateItems(player); }
-            case REW_PLUS1     -> { rewardAmount++; populateItems(player); }
-            case REW_PLUS10    -> { rewardAmount += 10;   populateItems(player); }
-            case REW_PLUS100   -> { rewardAmount += 100;  populateItems(player); }
-            case REW_PLUS1000  -> { rewardAmount += 1000; populateItems(player); }
+            case QTY_MINUS10 -> { quantity = Math.max(QTY_MIN, quantity - 10);  playClick(player); populateItems(player); }
+            case QTY_MINUS1  -> { quantity = Math.max(QTY_MIN, quantity - 1);   playClick(player); populateItems(player); }
+            case QTY_PLUS1   -> { quantity = Math.min(QTY_MAX, quantity + 1);   playClick(player); populateItems(player); }
+            case QTY_PLUS10  -> { quantity = Math.min(QTY_MAX, quantity + 10);  playClick(player); populateItems(player); }
+            case REW_MINUS1000 -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 1000); playClick(player); populateItems(player); }
+            case REW_MINUS100  -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 100);  playClick(player); populateItems(player); }
+            case REW_MINUS10   -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 10);   playClick(player); populateItems(player); }
+            case REW_MINUS1    -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 1);    playClick(player); populateItems(player); }
+            case REW_PLUS1     -> { rewardAmount++; playClick(player); populateItems(player); }
+            case REW_PLUS10    -> { rewardAmount += 10;   playClick(player); populateItems(player); }
+            case REW_PLUS100   -> { rewardAmount += 100;  playClick(player); populateItems(player); }
+            case REW_PLUS1000  -> { rewardAmount += 1000; playClick(player); populateItems(player); }
             case BACK_BTN      -> goBackToPicker(player);
             case CONFIRM_BTN   -> confirmPost(player);
         }
+    }
+
+    /** Play a UI click sound directly to this player. */
+    private static void playClick(ServerPlayer player) {
+        player.playNotifySound(SoundEvents.UI_BUTTON_CLICK.value(), SoundSource.PLAYERS, 0.4f, 1.0f);
     }
 
     private void goBackToPicker(ServerPlayer player) {
@@ -304,7 +311,7 @@ public class GuildBountyPostMenu extends ChestMenu {
 
     private ItemStack rewardDisplay() {
         boolean valid = rewardAmount > 0;
-        ItemStack s = new ItemStack(valid ? Items.GOLD_INGOT : Items.GOLD_NUGGET);
+        ItemStack s = CurrencyManager.getDisplayItem();
         s.setHoverName(styled("Reward: " + CurrencyManager.format(rewardAmount),
                 valid ? ChatFormatting.GOLD : ChatFormatting.GRAY));
         appendLore(s, lore("Paid from guild bank to claimer", ChatFormatting.GRAY));

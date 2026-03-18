@@ -58,6 +58,34 @@ public class GuildCommand {
             };
 
     /**
+     * Suggests the names of players who have a pending application to the officer's guild.
+     * Used for /guild accept and /guild deny.
+     */
+    private static final SuggestionProvider<CommandSourceStack> SUGGEST_APPLICANTS =
+            (ctx, builder) -> {
+                try {
+                    ServerPlayer player = ctx.getSource().getPlayerOrException();
+                    Guild guild = GuildUtils.getGuildOf(player);
+                    if (guild == null) return builder.buildFuture();
+                    MinecraftServer server = player.getServer();
+                    if (server == null) return builder.buildFuture();
+                    java.util.List<String> names = new java.util.ArrayList<>();
+                    for (java.util.UUID uuid : guild.getPendingApplications().keySet()) {
+                        ServerPlayer candidate = server.getPlayerList().getPlayer(uuid);
+                        if (candidate != null) {
+                            names.add(candidate.getName().getString());
+                        } else if (server.getProfileCache() != null) {
+                            server.getProfileCache().get(uuid)
+                                    .ifPresent(p -> names.add(p.getName()));
+                        }
+                    }
+                    return SharedSuggestionProvider.suggest(names, builder);
+                } catch (Exception e) {
+                    return builder.buildFuture();
+                }
+            };
+
+    /**
      * Suggests the names of all guilds on the server.
      * Used for /guild info <guild>.
      */
@@ -217,12 +245,14 @@ public class GuildCommand {
         // ── /guild accept <playerName> ────────────────────────────────────────
         guild.then(Commands.literal("accept")
                 .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests(SUGGEST_APPLICANTS)
                         .executes(ctx -> acceptApplication(ctx.getSource(),
                                 StringArgumentType.getString(ctx, "player")))));
 
         // ── /guild deny <playerName> ──────────────────────────────────────────
         guild.then(Commands.literal("deny")
                 .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests(SUGGEST_APPLICANTS)
                         .executes(ctx -> denyApplication(ctx.getSource(),
                                 StringArgumentType.getString(ctx, "player")))));
 

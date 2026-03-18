@@ -174,6 +174,11 @@ public class PhysicalItemProvider implements ICurrencyProvider {
         if (change > 0) give(player, change);
     }
 
+    @Override
+    public ItemStack getDisplayItem() {
+        return new ItemStack(ModItems.GUILD_COIN.get());
+    }
+
     /** Human-readable tier name for format(). */
     private static String tierName(int tier) {
         return switch (tier) {

@@ -1,6 +1,7 @@
 package com.botzguildz.currency;
 
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * Abstraction layer over the active currency system.
@@ -28,4 +29,7 @@ public interface ICurrencyProvider {
 
     /** @return true if this provider is usable (e.g. Numismatics is actually loaded). */
     boolean isAvailable();
+
+    /** @return an ItemStack representing the currency for display in GUIs. */
+    ItemStack getDisplayItem();
 }

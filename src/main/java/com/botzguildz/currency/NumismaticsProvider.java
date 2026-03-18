@@ -2,6 +2,8 @@ package com.botzguildz.currency;
 
 import com.botzguildz.BotzGuildz;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -147,6 +149,21 @@ public class NumismaticsProvider implements ICurrencyProvider {
             return true;
         } catch (ClassNotFoundException e) {
             return false;
+        }
+    }
+
+    @Override
+    public ItemStack getDisplayItem() {
+        // Numismatics Spur coin — fall back to gold nugget if the item can't be resolved
+        try {
+            Class<?> itemsClass = Class.forName("dev.ithundxr.createnumismatics.registry.NumismaticsItems");
+            Object coinReg = itemsClass.getField("SPUR").get(null);
+            // RegistryObject or similar — call .get() to get the Item
+            java.lang.reflect.Method get = coinReg.getClass().getMethod("get");
+            net.minecraft.world.item.Item item = (net.minecraft.world.item.Item) get.invoke(coinReg);
+            return new ItemStack(item);
+        } catch (Exception e) {
+            return new ItemStack(Items.GOLD_NUGGET);
         }
     }
 }

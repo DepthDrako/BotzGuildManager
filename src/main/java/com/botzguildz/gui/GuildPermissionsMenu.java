@@ -29,8 +29,8 @@ import java.util.*;
  * <pre>
  * Row 0 (0-8):   [glass×4][TITLE:4][glass×4]
  * Row 1 (9-17):  [RankTab×N][glass fills remaining]   ← up to 9 rank tabs
- * Row 2 (18-26): [Perm×9]                              ← 9 permission toggle tiles
- * Row 3 (27-35): [glass×4][INFO:31][glass×4]           ← current rank info
+ * Row 2 (18-26): [Perm×9]                              ← perms 0-8 (INVITE … MANAGE_ALLIES)
+ * Row 3 (27-35): [Perm×3 (27-29)][glass:30][INFO:31][glass×4]  ← perms 9-11 + rank info
  * Row 4 (36-44): [glass×9]
  * Row 5 (45-53): [CANCEL:45][glass×7][APPLY:53]
  * </pre>
@@ -131,10 +131,12 @@ public class GuildPermissionsMenu extends ChestMenu {
                 ? pendingPerms.getOrDefault(currentRank, EnumSet.noneOf(RankPermission.class))
                 : EnumSet.noneOf(RankPermission.class);
 
-        for (int i = 0; i < ALL_PERMS.length && i < 9; i++) {
+        for (int i = 0; i < ALL_PERMS.length; i++) {
             RankPermission perm = ALL_PERMS[i];
             boolean hasPerm = locked || currentPerms.contains(perm);
-            chest.setItem(PERM_FIRST + i, makePermTile(perm, hasPerm, locked, currentRank));
+            // Perms 0-8 → slots 18-26 (row 2); perms 9-11 → slots 27-29 (start of row 3)
+            int slot = i < 9 ? PERM_FIRST + i : 27 + (i - 9);
+            chest.setItem(slot, makePermTile(perm, hasPerm, locked, currentRank));
         }
 
         // ── Row 3 — info tile ─────────────────────────────────────────────────
