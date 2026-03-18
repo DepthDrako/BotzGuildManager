@@ -72,8 +72,8 @@ public class GuildBankMenu extends ChestMenu {
     // ── Tier names ────────────────────────────────────────────────────────────
 
     private static final String[] TIER_NAMES = {
-            "Guild Bit", "Guild Chip", "Guild Token",
-            "Guild Coin", "Guild Mark", "Guild Seal"
+            "GB", "GCh", "GT",
+            "GC", "GM",  "GS"
     };
 
     // ── Constructor ───────────────────────────────────────────────────────────
@@ -129,14 +129,14 @@ public class GuildBankMenu extends ChestMenu {
         // ── Row 1 — balances ──────────────────────────────────────────────────
         ItemStack walletItem = new ItemStack(Items.GOLD_INGOT);
         walletItem.setHoverName(styled("Your Wallet", ChatFormatting.GOLD));
-        appendLore(walletItem, lore(CurrencyManager.format(walletBal), ChatFormatting.YELLOW));
+        appendLore(walletItem, lore(CurrencyManager.formatShort(walletBal), ChatFormatting.YELLOW));
         appendLore(walletItem, lore("Available to donate", ChatFormatting.GRAY));
         chest.setItem(WALLET_SLOT, walletItem);
 
         ItemStack guildItem = new ItemStack(Items.CHEST);
         if (guild != null) {
             guildItem.setHoverName(styled(guild.getName() + " Treasury", ChatFormatting.GREEN));
-            appendLore(guildItem, lore(CurrencyManager.format(guildBal), ChatFormatting.YELLOW));
+            appendLore(guildItem, lore(CurrencyManager.formatShort(guildBal), ChatFormatting.YELLOW));
             appendLore(guildItem, lore("Guild available balance", ChatFormatting.GRAY));
         } else {
             guildItem.setHoverName(styled("Guild Treasury", ChatFormatting.DARK_GRAY));
@@ -152,14 +152,14 @@ public class GuildBankMenu extends ChestMenu {
             if (canWithdraw) {
                 String limitStr = (limit == Long.MAX_VALUE)
                         ? "Unlimited"
-                        : CurrencyManager.format(limit) + " / day";
+                        : CurrencyManager.formatShort(limit) + " / day";
                 String remStr = (remaining == Long.MAX_VALUE)
                         ? "Unlimited remaining"
-                        : CurrencyManager.format(remaining) + " remaining today";
+                        : CurrencyManager.formatShort(remaining) + " remaining today";
                 appendLore(rankItem, lore("Daily withdrawal: " + limitStr, ChatFormatting.AQUA));
                 appendLore(rankItem, lore(remStr, ChatFormatting.YELLOW));
                 if (withdrawnToday > 0 && limit != Long.MAX_VALUE)
-                    appendLore(rankItem, lore("Withdrawn today: " + CurrencyManager.format(withdrawnToday), ChatFormatting.DARK_GRAY));
+                    appendLore(rankItem, lore("Withdrawn today: " + CurrencyManager.formatShort(withdrawnToday), ChatFormatting.DARK_GRAY));
             } else {
                 appendLore(rankItem, lore("No withdrawal permission", ChatFormatting.RED));
                 appendLore(rankItem, lore("High-ranking officers can withdraw", ChatFormatting.DARK_GRAY));
@@ -173,7 +173,7 @@ public class GuildBankMenu extends ChestMenu {
         appendLore(donLabel, lore("Click a coin to donate from your wallet", ChatFormatting.GRAY));
         appendLore(donLabel, lore("Left-click: donate 1 item", ChatFormatting.DARK_GRAY));
         appendLore(donLabel, lore("Shift-click: donate 64 items", ChatFormatting.DARK_GRAY));
-        appendLore(donLabel, lore("Wallet: " + CurrencyManager.format(walletBal), ChatFormatting.YELLOW));
+        appendLore(donLabel, lore("Wallet: " + CurrencyManager.formatShort(walletBal), ChatFormatting.YELLOW));
         chest.setItem(DON_LABEL, donLabel);
 
         for (int t = 0; t < 6; t++)
@@ -182,7 +182,7 @@ public class GuildBankMenu extends ChestMenu {
         ItemStack donAll = new ItemStack(Items.EMERALD_BLOCK);
         donAll.setHoverName(styled("Donate All", ChatFormatting.GREEN));
         appendLore(donAll, lore("Send your entire wallet to the guild bank", ChatFormatting.GRAY));
-        appendLore(donAll, lore("Total: " + CurrencyManager.format(walletBal), ChatFormatting.YELLOW));
+        appendLore(donAll, lore("Total: " + CurrencyManager.formatShort(walletBal), ChatFormatting.YELLOW));
         if (walletBal <= 0) appendLore(donAll, lore("Wallet is empty", ChatFormatting.RED));
         chest.setItem(DON_ALL, donAll);
 
@@ -194,7 +194,7 @@ public class GuildBankMenu extends ChestMenu {
             appendLore(wdLabel, lore("Left-click: 1  |  Shift-click: up to 64", ChatFormatting.DARK_GRAY));
             String remStr = (remaining == Long.MAX_VALUE)
                     ? "Unlimited remaining today"
-                    : CurrencyManager.format(remaining) + " remaining today";
+                    : CurrencyManager.formatShort(remaining) + " remaining today";
             appendLore(wdLabel, lore(remStr, ChatFormatting.YELLOW));
         } else {
             appendLore(wdLabel, lore("Your rank cannot withdraw from the guild bank", ChatFormatting.RED));
@@ -211,7 +211,7 @@ public class GuildBankMenu extends ChestMenu {
         if (canWithdraw) {
             long maxByLimit = (remaining == Long.MAX_VALUE) ? guildBal : Math.min(guildBal, remaining);
             appendLore(wdAll, lore("Withdraw as much as your daily limit allows", ChatFormatting.GRAY));
-            appendLore(wdAll, lore("Max this action: " + CurrencyManager.format(maxByLimit), ChatFormatting.YELLOW));
+            appendLore(wdAll, lore("Max this action: " + CurrencyManager.formatShort(maxByLimit), ChatFormatting.YELLOW));
             if (guildBal <= 0) appendLore(wdAll, lore("Treasury is empty", ChatFormatting.RED));
             else if (remaining <= 0 && remaining != Long.MAX_VALUE)
                 appendLore(wdAll, lore("Daily limit exhausted", ChatFormatting.RED));
@@ -239,14 +239,14 @@ public class GuildBankMenu extends ChestMenu {
         if (canAfford <= 0) {
             ItemStack s = new ItemStack(Items.RED_STAINED_GLASS_PANE);
             s.setHoverName(styled(name + " — Cannot afford", ChatFormatting.RED));
-            appendLore(s, lore("Need " + CurrencyManager.format(value) + " in wallet", ChatFormatting.DARK_GRAY));
+            appendLore(s, lore("Need " + CurrencyManager.formatShort(value) + " in wallet", ChatFormatting.DARK_GRAY));
             return s;
         }
         int displayCount = (int) Math.min(canAfford, 64);
         ItemStack s = new ItemStack(tierItem, displayCount);
         s.setHoverName(styled("Donate  " + name, ChatFormatting.GREEN));
-        appendLore(s, lore("Each worth " + CurrencyManager.format(value), ChatFormatting.GRAY));
-        appendLore(s, lore("Can donate: " + canAfford + "  (wallet: " + CurrencyManager.format(walletBal) + ")", ChatFormatting.YELLOW));
+        appendLore(s, lore("Each worth " + CurrencyManager.formatShort(value), ChatFormatting.GRAY));
+        appendLore(s, lore("Can donate: " + canAfford + "  (wallet: " + CurrencyManager.formatShort(walletBal) + ")", ChatFormatting.YELLOW));
         appendLore(s, lore("Left-click: donate 1", ChatFormatting.GRAY));
         appendLore(s, lore("Shift-click: donate 64", ChatFormatting.GRAY));
         return s;
@@ -273,18 +273,18 @@ public class GuildBankMenu extends ChestMenu {
             ItemStack s = new ItemStack(Items.RED_STAINED_GLASS_PANE);
             s.setHoverName(styled(name + " — " + (guildBal < value ? "Treasury too low" : "Limit too low"),
                     ChatFormatting.RED));
-            appendLore(s, lore("Guild: " + CurrencyManager.format(guildBal)
-                    + "  Need: " + CurrencyManager.format(value), ChatFormatting.DARK_GRAY));
+            appendLore(s, lore("Guild: " + CurrencyManager.formatShort(guildBal)
+                    + "  Need: " + CurrencyManager.formatShort(value), ChatFormatting.DARK_GRAY));
             return s;
         }
         int displayCount = (int) Math.min(canWithdrawCount, 64);
         ItemStack s = new ItemStack(tierItem, displayCount);
         s.setHoverName(styled("Withdraw  " + name, ChatFormatting.YELLOW));
-        appendLore(s, lore("Each worth " + CurrencyManager.format(value), ChatFormatting.GRAY));
-        appendLore(s, lore("Treasury: " + CurrencyManager.format(guildBal), ChatFormatting.YELLOW));
+        appendLore(s, lore("Each worth " + CurrencyManager.formatShort(value), ChatFormatting.GRAY));
+        appendLore(s, lore("Treasury: " + CurrencyManager.formatShort(guildBal), ChatFormatting.YELLOW));
         String remStr = (remaining == Long.MAX_VALUE)
                 ? "Unlimited"
-                : CurrencyManager.format(remaining) + " remaining today";
+                : CurrencyManager.formatShort(remaining) + " remaining today";
         appendLore(s, lore("Daily remaining: " + remStr, ChatFormatting.AQUA));
         appendLore(s, lore("Left-click: withdraw 1", ChatFormatting.GRAY));
         appendLore(s, lore("Shift-click: withdraw up to 64 (or limit)", ChatFormatting.GRAY));

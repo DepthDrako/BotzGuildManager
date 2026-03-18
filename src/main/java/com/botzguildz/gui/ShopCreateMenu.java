@@ -64,8 +64,8 @@ public class ShopCreateMenu extends ChestMenu {
     // Denomination data — index 0=BIT … 5=SEAL
     private static final long[]   DENOM_VALUES = { 1L, 8L, 64L, 512L, 4_096L, 32_768L };
     private static final String[] DENOM_NAMES  = {
-            "Guild Bit", "Guild Chip", "Guild Token",
-            "Guild Coin", "Guild Mark", "Guild Seal"
+            "GB", "GCh", "GT",
+            "GC", "GM",  "GS"
     };
 
     // ── Per-instance state ────────────────────────────────────────────────────
@@ -150,7 +150,7 @@ public class ShopCreateMenu extends ChestMenu {
                 // Show actual count on the item (capped at 64 for visual)
                 btn.setCount((int) Math.min(count, 64));
                 btn.setHoverName(styledName("×" + count + "  " + DENOM_NAMES[i], ChatFormatting.GOLD));
-                appendLore(btn, lore("= " + CurrencyManager.format(count * DENOM_VALUES[i]),
+                appendLore(btn, lore("= " + CurrencyManager.formatShort(count * DENOM_VALUES[i]),
                         ChatFormatting.YELLOW));
             } else {
                 // No denominations added yet — still show the item (count stays 1)
@@ -177,7 +177,7 @@ public class ShopCreateMenu extends ChestMenu {
 
         ItemStack priceDisplay = new ItemStack(Items.GOLD_NUGGET);
         priceDisplay.setHoverName(styledName(
-                price == 0 ? "Price: Not set" : "Price: " + CurrencyManager.format(price),
+                price == 0 ? "Price: Not set" : "Price: " + CurrencyManager.formatShort(price),
                 price == 0 ? ChatFormatting.GRAY : ChatFormatting.GOLD));
         appendLore(priceDisplay, lore("Click currency items above to set", ChatFormatting.DARK_GRAY));
         chest.setItem(PRICE_SLOT, priceDisplay);
@@ -188,7 +188,7 @@ public class ShopCreateMenu extends ChestMenu {
         if (ready) {
             appendLore(confirm, lore(listItem.getHoverName().getString()
                     + " ×" + listItem.getCount(), ChatFormatting.YELLOW));
-            appendLore(confirm, lore("for " + CurrencyManager.format(price) + " each",
+            appendLore(confirm, lore("for " + CurrencyManager.formatShort(price) + " each",
                     ChatFormatting.YELLOW));
         } else {
             appendLore(confirm, lore(

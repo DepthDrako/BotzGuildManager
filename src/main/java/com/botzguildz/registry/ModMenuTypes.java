@@ -46,6 +46,10 @@ public class ModMenuTypes {
 
     // ── Bank GUIs ─────────────────────────────────────────────────────────────
 
+    public static final RegistryObject<MenuType<BankTestMenu>> BANK_TEST_MENU =
+            MENUS.register("bank_test",
+                    () -> IForgeMenuType.create(BankTestMenu::fromNetwork));
+
     public static final RegistryObject<MenuType<PersonalBankMenu>> PERSONAL_BANK_MENU =
             MENUS.register("personal_bank",
                     () -> IForgeMenuType.create(PersonalBankMenu::fromNetwork));

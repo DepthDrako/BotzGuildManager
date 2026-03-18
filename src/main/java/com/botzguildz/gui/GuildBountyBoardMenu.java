@@ -177,7 +177,7 @@ public class GuildBountyBoardMenu extends ChestMenu {
                 entry.getQuantityRequired() + "x " + entry.getTargetItem().getHoverName().getString(),
                 ChatFormatting.WHITE));
 
-        appendLore(tile, lore("Reward: " + CurrencyManager.format(entry.getRewardAmount()), ChatFormatting.GOLD));
+        appendLore(tile, lore("Reward: " + CurrencyManager.formatShort(entry.getRewardAmount()), ChatFormatting.GOLD));
         appendLore(tile, lore("Posted by: " + entry.getPosterName(), ChatFormatting.GRAY));
 
         // Check if the player has enough items

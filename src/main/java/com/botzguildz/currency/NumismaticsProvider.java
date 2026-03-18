@@ -152,6 +152,23 @@ public class NumismaticsProvider implements ICurrencyProvider {
         }
     }
 
+    // Numismatics denominations: SPUR=1, BEVEL=8, SPROCKET=16, COG=64, CROWN=512, SUN=4096
+    private static final long[] NUM_DENOMS = { 1L, 8L, 16L, 64L, 512L, 4_096L };
+
+    @Override
+    public long[] getDenominations() { return NUM_DENOMS; }
+
+    @Override
+    public ItemStack getTierItem(int tierIndex) {
+        // Vanilla fallback icons — avoids a hard dependency on Numismatics items
+        net.minecraft.world.item.Item[] fallbacks = {
+                Items.IRON_NUGGET, Items.IRON_INGOT, Items.GOLD_NUGGET,
+                Items.GOLD_INGOT, Items.EMERALD, Items.DIAMOND
+        };
+        if (tierIndex < 0 || tierIndex >= fallbacks.length) return new ItemStack(Items.GOLD_NUGGET);
+        return new ItemStack(fallbacks[tierIndex]);
+    }
+
     @Override
     public ItemStack getDisplayItem() {
         // Numismatics Spur coin — fall back to gold nugget if the item can't be resolved

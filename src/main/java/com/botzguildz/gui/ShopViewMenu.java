@@ -408,7 +408,7 @@ public class ShopViewMenu extends ChestMenu {
         AuctionBrowseMenu.appendLore(display, AuctionBrowseMenu.lore("────────────────────", ChatFormatting.DARK_GRAY));
         AuctionBrowseMenu.appendLore(display, Component.literal("Price: ")
                 .withStyle(Style.EMPTY.withColor(ChatFormatting.GOLD).withItalic(false))
-                .append(Component.literal(CurrencyManager.format(listing.getPriceEach()) + " each")
+                .append(Component.literal(CurrencyManager.formatShort(listing.getPriceEach()) + " each")
                         .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW).withItalic(false))));
         if (chestStock >= 0) {
             // Chest-backed player shop listing — show live stock

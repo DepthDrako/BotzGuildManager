@@ -35,12 +35,19 @@ import java.util.UUID;
  *
  * <pre>
  * Row 0 (0-8):   [glass×4][ITEM_DISPLAY:4][glass×4]
- * Row 1 (9-17):  [-10:9][-1:10][glass][glass][QTY_DISPLAY:13][glass][glass][+1:15][+10:16]
- * Row 2 (18-26): [-1000:18][-100:19][-10:20][-1:21][REWARD_DISPLAY:22][+1:23][+10:24][+100:25][+1000:26]
- * Row 3 (27-35): [glass×4][BANK_INFO:31][glass×4]
- * Row 4 (36-44): [glass×9]
+ * Row 1 (9-17):  [ADD_LABEL:9][Bit+:10][Chip+:11][Token+:12][Coin+:13][Mark+:14][Seal+:15][glass:16][glass:17]
+ * Row 2 (18-26): [SUB_LABEL:18][Bit-:19][Chip-:20][Token-:21][Coin-:22][Mark-:23][Seal-:24][glass:25][glass:26]
+ * Row 3 (27-35): [glass×4][REWARD_DISPLAY:31][glass×4]
+ * Row 4 (36-44): [BANK_INFO:36][glass:37][QTY-10:38][QTY-1:39][QTY_DISPLAY:40][QTY+1:41][QTY+10:42][glass×2]
  * Row 5 (45-53): [BACK:45][glass×7][CONFIRM:53]
  * </pre>
+ *
+ * ADD row:    left-click = +1 of that denomination; shift-click = +64.
+ *             Tile shows the coin item with stack count = how many are staged.
+ * REMOVE row: left-click = −1; shift-click = −64 (clamped to 0).
+ *             Tile turns to red glass pane when count is 0.
+ * Reward display updates immediately after every click, showing the full
+ * denomination breakdown (e.g. "1 Seal, 2 Coins, 1 Bit").
  */
 public class GuildBountyPostMenu extends ChestMenu {
 
@@ -50,37 +57,45 @@ public class GuildBountyPostMenu extends ChestMenu {
     // ── Slot constants ────────────────────────────────────────────────────────
 
     private static final int ITEM_DISPLAY  = 4;
-    // Quantity row (row 1)
-    private static final int QTY_MINUS10   = 9;
-    private static final int QTY_MINUS1    = 10;
-    private static final int QTY_DISPLAY   = 13;
-    private static final int QTY_PLUS1     = 15;
-    private static final int QTY_PLUS10    = 16;
-    // Reward row (row 2)
-    private static final int REW_MINUS1000 = 18;
-    private static final int REW_MINUS100  = 19;
-    private static final int REW_MINUS10   = 20;
-    private static final int REW_MINUS1    = 21;
-    private static final int REW_DISPLAY   = 22;
-    private static final int REW_PLUS1     = 23;
-    private static final int REW_PLUS10    = 24;
-    private static final int REW_PLUS100   = 25;
-    private static final int REW_PLUS1000  = 26;
-    // Info / action
-    private static final int BANK_INFO     = 31;
-    private static final int BACK_BTN      = 45;
-    private static final int CONFIRM_BTN   = 53;
 
-    private static final int QTY_MIN = 1;
-    private static final int QTY_MAX = 1000;
-    private static final long REW_MIN = 0L;
+    // Row 1 — add denomination (label + 6 tier tiles)
+    private static final int ADD_LABEL = 9;
+    private static final int ADD_FIRST = 10;   // ADD_FIRST + tierIdx (0-5)
+
+    // Row 2 — remove denomination (label + 6 tier tiles)
+    private static final int SUB_LABEL = 18;
+    private static final int SUB_FIRST = 19;   // SUB_FIRST + tierIdx (0-5)
+
+    // Row 3 — reward display
+    private static final int REWARD_DISPLAY = 31;
+
+    // Row 4 — bank info + quantity controls
+    private static final int BANK_INFO   = 36;
+    private static final int QTY_MINUS10 = 38;
+    private static final int QTY_MINUS1  = 39;
+    private static final int QTY_DISPLAY = 40;
+    private static final int QTY_PLUS1   = 41;
+    private static final int QTY_PLUS10  = 42;
+
+    // Row 5 — action buttons
+    private static final int BACK_BTN    = 45;
+    private static final int CONFIRM_BTN = 53;
+
+    private static final int  QTY_MIN = 1;
+    private static final int  QTY_MAX = 1000;
 
     // ── State ─────────────────────────────────────────────────────────────────
 
     private final UUID      guildId;
     private final ItemStack selectedItem;
     private int             quantity   = 1;
-    private long            rewardAmount = 0L;
+
+    /**
+     * How many of each denomination tier have been staged into the reward.
+     * Index 0 = smallest tier, index 5 = largest.
+     * rewardAmount = sum(tierCounts[i] * denoms[i]).
+     */
+    private final long[] tierCounts = new long[6];
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -106,10 +121,25 @@ public class GuildBountyPostMenu extends ChestMenu {
         return new GuildBountyPostMenu(id, inv, new SimpleContainer(CHEST_SIZE), guildId, item);
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** Total reward value computed from the staged tier counts. */
+    private long computeReward() {
+        long[] denoms = CurrencyManager.getDenominations();
+        long total = 0;
+        for (int i = 0; i < Math.min(tierCounts.length, denoms.length); i++) {
+            total += tierCounts[i] * denoms[i];
+        }
+        return total;
+    }
+
     // ── Population ────────────────────────────────────────────────────────────
 
     private void populateItems(Player player) {
-        SimpleContainer chest = (SimpleContainer) getContainer();
+        SimpleContainer chest  = (SimpleContainer) getContainer();
+        long[]          denoms = CurrencyManager.getDenominations();
+        long            reward = computeReward();
+
         for (int i = 0; i < CHEST_SIZE; i++) chest.setItem(i, pane());
 
         // ── Row 0 — selected item display ─────────────────────────────────────
@@ -117,39 +147,52 @@ public class GuildBountyPostMenu extends ChestMenu {
         appendLore(display, lore("Item to be collected for this bounty", ChatFormatting.GRAY));
         chest.setItem(ITEM_DISPLAY, display);
 
-        // ── Row 1 — quantity controls ─────────────────────────────────────────
-        chest.setItem(QTY_MINUS10, adjustBtn("-10",  ChatFormatting.RED,       Items.RED_STAINED_GLASS_PANE));
-        chest.setItem(QTY_MINUS1,  adjustBtn("-1",   ChatFormatting.RED,       Items.RED_STAINED_GLASS_PANE));
-        chest.setItem(QTY_DISPLAY, quantityDisplay());
-        chest.setItem(QTY_PLUS1,   adjustBtn("+1",   ChatFormatting.GREEN,     Items.LIME_STAINED_GLASS_PANE));
-        chest.setItem(QTY_PLUS10,  adjustBtn("+10",  ChatFormatting.GREEN,     Items.LIME_STAINED_GLASS_PANE));
+        // ── Row 1 — ADD denomination row ──────────────────────────────────────
+        ItemStack addLabel = new ItemStack(Items.LIME_DYE);
+        addLabel.setHoverName(styled("ADD to Reward  →", ChatFormatting.GREEN));
+        appendLore(addLabel, lore("Left-click: +1 of that coin", ChatFormatting.GRAY));
+        appendLore(addLabel, lore("Shift-click: +64", ChatFormatting.DARK_GRAY));
+        chest.setItem(ADD_LABEL, addLabel);
 
-        // ── Row 2 — reward controls ───────────────────────────────────────────
-        chest.setItem(REW_MINUS1000, adjustBtn("-1000", ChatFormatting.DARK_RED,   Items.RED_STAINED_GLASS_PANE));
-        chest.setItem(REW_MINUS100,  adjustBtn("-100",  ChatFormatting.RED,        Items.RED_STAINED_GLASS_PANE));
-        chest.setItem(REW_MINUS10,   adjustBtn("-10",   ChatFormatting.RED,        Items.RED_STAINED_GLASS_PANE));
-        chest.setItem(REW_MINUS1,    adjustBtn("-1",    ChatFormatting.RED,        Items.RED_STAINED_GLASS_PANE));
-        chest.setItem(REW_DISPLAY,   rewardDisplay());
-        chest.setItem(REW_PLUS1,     adjustBtn("+1",    ChatFormatting.GREEN,      Items.LIME_STAINED_GLASS_PANE));
-        chest.setItem(REW_PLUS10,    adjustBtn("+10",   ChatFormatting.GREEN,      Items.LIME_STAINED_GLASS_PANE));
-        chest.setItem(REW_PLUS100,   adjustBtn("+100",  ChatFormatting.GREEN,      Items.LIME_STAINED_GLASS_PANE));
-        chest.setItem(REW_PLUS1000,  adjustBtn("+1000", ChatFormatting.DARK_GREEN, Items.LIME_STAINED_GLASS_PANE));
+        for (int t = 0; t < 6 && t < denoms.length; t++) {
+            chest.setItem(ADD_FIRST + t, makeAddTile(t, denoms[t]));
+        }
 
-        // ── Row 3 — bank info ─────────────────────────────────────────────────
+        // ── Row 2 — REMOVE denomination row ───────────────────────────────────
+        ItemStack subLabel = new ItemStack(Items.RED_DYE);
+        subLabel.setHoverName(styled("←  REMOVE from Reward", ChatFormatting.RED));
+        appendLore(subLabel, lore("Left-click: -1 of that coin", ChatFormatting.GRAY));
+        appendLore(subLabel, lore("Shift-click: -64", ChatFormatting.DARK_GRAY));
+        chest.setItem(SUB_LABEL, subLabel);
+
+        for (int t = 0; t < 6 && t < denoms.length; t++) {
+            chest.setItem(SUB_FIRST + t, makeSubTile(t, denoms[t]));
+        }
+
+        // ── Row 3 — reward display ────────────────────────────────────────────
+        chest.setItem(REWARD_DISPLAY, rewardDisplay(reward, denoms));
+
+        // ── Row 4 — bank info + quantity controls ─────────────────────────────
         if (player instanceof ServerPlayer sp) {
-            Guild guild = GuildUtils.getGuildOf(sp);
+            Guild guild    = GuildUtils.getGuildOf(sp);
             long available = guild != null ? guild.getAvailableBalance() : 0;
-            boolean canAfford = available >= rewardAmount && rewardAmount > 0;
+            boolean canAfford = available >= reward && reward > 0;
+
             ItemStack info = CurrencyManager.getDisplayItem();
             info.setHoverName(styled("Guild Bank", ChatFormatting.GOLD));
-            appendLore(info, lore("Available: " + CurrencyManager.format(available), ChatFormatting.YELLOW));
-            appendLore(info, lore("Reward cost: " + CurrencyManager.format(rewardAmount),
-                    rewardAmount == 0 ? ChatFormatting.GRAY
-                            : canAfford ? ChatFormatting.GREEN : ChatFormatting.RED));
-            if (!canAfford && rewardAmount > 0)
+            appendLore(info, lore("Available: " + CurrencyManager.formatShort(available), ChatFormatting.YELLOW));
+            appendLore(info, lore("Reward cost: " + (reward > 0 ? CurrencyManager.formatShort(reward) : "none"),
+                    reward == 0 ? ChatFormatting.GRAY : canAfford ? ChatFormatting.GREEN : ChatFormatting.RED));
+            if (!canAfford && reward > 0)
                 appendLore(info, lore("Insufficient funds!", ChatFormatting.RED));
             chest.setItem(BANK_INFO, info);
         }
+
+        chest.setItem(QTY_MINUS10, qtyBtn("-10", ChatFormatting.RED));
+        chest.setItem(QTY_MINUS1,  qtyBtn("-1",  ChatFormatting.RED));
+        chest.setItem(QTY_DISPLAY, quantityDisplay());
+        chest.setItem(QTY_PLUS1,   qtyBtn("+1",  ChatFormatting.GREEN));
+        chest.setItem(QTY_PLUS10,  qtyBtn("+10", ChatFormatting.GREEN));
 
         // ── Row 5 — Back / Confirm ────────────────────────────────────────────
         ItemStack back = new ItemStack(Items.ARROW);
@@ -157,16 +200,98 @@ public class GuildBountyPostMenu extends ChestMenu {
         appendLore(back, lore("Return to item picker", ChatFormatting.GRAY));
         chest.setItem(BACK_BTN, back);
 
-        boolean valid = rewardAmount > 0 && quantity >= 1;
+        boolean valid = reward > 0 && quantity >= 1;
         ItemStack confirm = new ItemStack(valid ? Items.EMERALD : Items.BARRIER);
-        confirm.setHoverName(styled(valid ? "Post Bounty" : "Cannot Post", valid ? ChatFormatting.GREEN : ChatFormatting.RED));
+        confirm.setHoverName(styled(valid ? "Post Bounty" : "Cannot Post",
+                valid ? ChatFormatting.GREEN : ChatFormatting.RED));
         appendLore(confirm, lore("Collect: " + quantity + "x " + selectedItem.getHoverName().getString(),
                 ChatFormatting.WHITE));
-        appendLore(confirm, lore("Reward: " + CurrencyManager.format(rewardAmount), ChatFormatting.GOLD));
-        if (!valid) appendLore(confirm, lore("Set a reward amount > 0 to post", ChatFormatting.GRAY));
+        appendLore(confirm, lore("Reward: " + (reward > 0 ? CurrencyManager.formatShort(reward) : "not set"),
+                ChatFormatting.GOLD));
+        if (!valid) appendLore(confirm, lore("Add a reward amount above to post", ChatFormatting.GRAY));
         chest.setItem(CONFIRM_BTN, confirm);
 
         broadcastChanges();
+    }
+
+    // ── Tile builders ─────────────────────────────────────────────────────────
+
+    /**
+     * ADD tile: shows the actual coin item.
+     * Stack count = how many are already staged (capped at 64, min 1 so item is visible).
+     */
+    private ItemStack makeAddTile(int tier, long denomValue) {
+        ItemStack s = CurrencyManager.getTierItem(tier).copy();
+        long staged = tierCounts[tier];
+        s.setCount((int) Math.min(64, Math.max(1, staged)));
+        s.setHoverName(styled("+" + CurrencyManager.formatShort(denomValue), ChatFormatting.GREEN));
+        appendLore(s, lore("Staged: " + staged, ChatFormatting.YELLOW));
+        appendLore(s, lore("Left-click: +1  |  Shift: +64", ChatFormatting.GRAY));
+        return s;
+    }
+
+    /**
+     * REMOVE tile: shows the coin item when staged count > 0 (red name),
+     * or a red glass pane when none have been staged.
+     */
+    private ItemStack makeSubTile(int tier, long denomValue) {
+        long staged = tierCounts[tier];
+        if (staged <= 0) {
+            ItemStack s = new ItemStack(Items.RED_STAINED_GLASS_PANE);
+            s.setHoverName(styled("-" + CurrencyManager.formatShort(denomValue), ChatFormatting.DARK_RED));
+            appendLore(s, lore("None staged", ChatFormatting.DARK_GRAY));
+            return s;
+        }
+        ItemStack s = CurrencyManager.getTierItem(tier).copy();
+        s.setCount((int) Math.min(64, staged));
+        s.setHoverName(styled("-" + CurrencyManager.formatShort(denomValue), ChatFormatting.RED));
+        appendLore(s, lore("Staged: " + staged, ChatFormatting.YELLOW));
+        appendLore(s, lore("Left-click: -1  |  Shift: -64", ChatFormatting.GRAY));
+        return s;
+    }
+
+    /**
+     * Reward display tile: shows the denomination breakdown so the player can see
+     * exactly what they've built up, one line per active tier.
+     */
+    private ItemStack rewardDisplay(long reward, long[] denoms) {
+        boolean valid = reward > 0;
+        ItemStack s = CurrencyManager.getDisplayItem();
+        s.setHoverName(styled(valid ? "Reward: " + CurrencyManager.formatShort(reward) : "No Reward Set",
+                valid ? ChatFormatting.GOLD : ChatFormatting.GRAY));
+
+        // Breakdown: one lore line per tier that has a staged count
+        boolean any = false;
+        for (int t = denoms.length - 1; t >= 0; t--) {
+            if (t < tierCounts.length && tierCounts[t] > 0) {
+                long val = tierCounts[t] * denoms[t];
+                appendLore(s, lore("  " + tierCounts[t] + "x " + tierName(t)
+                        + "  =  " + CurrencyManager.formatShort(val), ChatFormatting.YELLOW));
+                any = true;
+            }
+        }
+
+        if (!any) {
+            appendLore(s, lore("Click coin tiles above to build a reward", ChatFormatting.GRAY));
+        }
+        appendLore(s, lore("Paid from guild bank on claim", ChatFormatting.DARK_GRAY));
+        return s;
+    }
+
+    private ItemStack quantityDisplay() {
+        ItemStack s = new ItemStack(Items.BOOK);
+        s.setHoverName(styled("Quantity: " + quantity, ChatFormatting.WHITE));
+        appendLore(s, lore("Items required for one claim", ChatFormatting.GRAY));
+        appendLore(s, lore("Range: " + QTY_MIN + " – " + QTY_MAX, ChatFormatting.DARK_GRAY));
+        return s;
+    }
+
+    private static ItemStack qtyBtn(String label, ChatFormatting color) {
+        ItemStack s = new ItemStack(Items.PAPER);
+        s.setHoverName(Component.literal(label)
+                .withStyle(Style.EMPTY.withColor(color).withItalic(false)));
+        appendLore(s, lore("Adjust required quantity", ChatFormatting.GRAY));
+        return s;
     }
 
     // ── Click handling ────────────────────────────────────────────────────────
@@ -175,28 +300,41 @@ public class GuildBountyPostMenu extends ChestMenu {
     public void clicked(int slotId, int button, ClickType clickType, Player player) {
         if (slotId >= 0 && slotId < CHEST_SIZE) {
             if (!(player instanceof ServerPlayer sp)) return;
-            handleClick(slotId, sp);
+            handleClick(slotId, sp, clickType == ClickType.QUICK_MOVE);
             return;
         }
         super.clicked(slotId, button, clickType, player);
     }
 
-    private void handleClick(int slotId, ServerPlayer player) {
+    private void handleClick(int slotId, ServerPlayer player, boolean shiftClick) {
+        long amount = shiftClick ? 64 : 1;
+
+        // ── ADD tier tiles (slots 10-15) ──────────────────────────────────────
+        if (slotId >= ADD_FIRST && slotId < ADD_FIRST + 6) {
+            int tier = slotId - ADD_FIRST;
+            tierCounts[tier] += amount;
+            playClick(player);
+            populateItems(player);
+            return;
+        }
+
+        // ── REMOVE tier tiles (slots 19-24) ───────────────────────────────────
+        if (slotId >= SUB_FIRST && slotId < SUB_FIRST + 6) {
+            int tier = slotId - SUB_FIRST;
+            tierCounts[tier] = Math.max(0, tierCounts[tier] - amount);
+            playClick(player);
+            populateItems(player);
+            return;
+        }
+
+        // ── Quantity controls ─────────────────────────────────────────────────
         switch (slotId) {
-            case QTY_MINUS10 -> { quantity = Math.max(QTY_MIN, quantity - 10);  playClick(player); populateItems(player); }
-            case QTY_MINUS1  -> { quantity = Math.max(QTY_MIN, quantity - 1);   playClick(player); populateItems(player); }
-            case QTY_PLUS1   -> { quantity = Math.min(QTY_MAX, quantity + 1);   playClick(player); populateItems(player); }
-            case QTY_PLUS10  -> { quantity = Math.min(QTY_MAX, quantity + 10);  playClick(player); populateItems(player); }
-            case REW_MINUS1000 -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 1000); playClick(player); populateItems(player); }
-            case REW_MINUS100  -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 100);  playClick(player); populateItems(player); }
-            case REW_MINUS10   -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 10);   playClick(player); populateItems(player); }
-            case REW_MINUS1    -> { rewardAmount = Math.max(REW_MIN, rewardAmount - 1);    playClick(player); populateItems(player); }
-            case REW_PLUS1     -> { rewardAmount++; playClick(player); populateItems(player); }
-            case REW_PLUS10    -> { rewardAmount += 10;   playClick(player); populateItems(player); }
-            case REW_PLUS100   -> { rewardAmount += 100;  playClick(player); populateItems(player); }
-            case REW_PLUS1000  -> { rewardAmount += 1000; playClick(player); populateItems(player); }
-            case BACK_BTN      -> goBackToPicker(player);
-            case CONFIRM_BTN   -> confirmPost(player);
+            case QTY_MINUS10 -> { quantity = Math.max(QTY_MIN, quantity - 10); playClick(player); populateItems(player); }
+            case QTY_MINUS1  -> { quantity = Math.max(QTY_MIN, quantity - 1);  playClick(player); populateItems(player); }
+            case QTY_PLUS1   -> { quantity = Math.min(QTY_MAX, quantity + 1);  playClick(player); populateItems(player); }
+            case QTY_PLUS10  -> { quantity = Math.min(QTY_MAX, quantity + 10); playClick(player); populateItems(player); }
+            case BACK_BTN    -> goBackToPicker(player);
+            case CONFIRM_BTN -> confirmPost(player);
         }
     }
 
@@ -204,6 +342,8 @@ public class GuildBountyPostMenu extends ChestMenu {
     private static void playClick(ServerPlayer player) {
         player.playNotifySound(SoundEvents.UI_BUTTON_CLICK.value(), SoundSource.PLAYERS, 0.4f, 1.0f);
     }
+
+    // ── Navigation ────────────────────────────────────────────────────────────
 
     private void goBackToPicker(ServerPlayer player) {
         UUID gId = guildId;
@@ -230,8 +370,10 @@ public class GuildBountyPostMenu extends ChestMenu {
     }
 
     private void confirmPost(ServerPlayer player) {
+        long rewardAmount = computeReward();
+
         if (rewardAmount <= 0 || quantity < 1) {
-            player.sendSystemMessage(MessageUtils.error("Set a reward amount > 0 before posting."));
+            player.sendSystemMessage(MessageUtils.error("Add a reward amount before posting."));
             return;
         }
 
@@ -299,32 +441,15 @@ public class GuildBountyPostMenu extends ChestMenu {
     @Override public boolean stillValid(Player player) { return true; }
     @Override public ItemStack quickMoveStack(Player player, int index) { return ItemStack.EMPTY; }
 
-    // ── Tile builders ─────────────────────────────────────────────────────────
+    // ── Tier name helper ──────────────────────────────────────────────────────
 
-    private ItemStack quantityDisplay() {
-        ItemStack s = new ItemStack(Items.PAPER);
-        s.setHoverName(styled("Quantity: " + quantity, ChatFormatting.WHITE));
-        appendLore(s, lore("Items required for one claim", ChatFormatting.GRAY));
-        appendLore(s, lore("Range: " + QTY_MIN + " – " + QTY_MAX, ChatFormatting.DARK_GRAY));
-        return s;
-    }
-
-    private ItemStack rewardDisplay() {
-        boolean valid = rewardAmount > 0;
-        ItemStack s = CurrencyManager.getDisplayItem();
-        s.setHoverName(styled("Reward: " + CurrencyManager.format(rewardAmount),
-                valid ? ChatFormatting.GOLD : ChatFormatting.GRAY));
-        appendLore(s, lore("Paid from guild bank to claimer", ChatFormatting.GRAY));
-        if (!valid) appendLore(s, lore("Must be > 0 to post", ChatFormatting.RED));
-        return s;
-    }
-
-    private static ItemStack adjustBtn(String label, ChatFormatting color,
-                                        net.minecraft.world.item.Item paneItem) {
-        ItemStack s = new ItemStack(paneItem);
-        s.setHoverName(Component.literal(label)
-                .withStyle(Style.EMPTY.withColor(color).withItalic(false)));
-        return s;
+    private String tierName(int tier) {
+        return switch (tier) {
+            case 0 -> "GB";  case 1 -> "GCh";
+            case 2 -> "GT";  case 3 -> "GC";
+            case 4 -> "GM";  case 5 -> "GS";
+            default -> "?";
+        };
     }
 
     // ── GUI helpers ───────────────────────────────────────────────────────────

@@ -165,7 +165,7 @@ public class BountyMenu extends ChestMenu {
 
         AuctionBrowseMenu.appendLore(skull, Component.literal("Total Bounty: ")
                 .withStyle(Style.EMPTY.withColor(ChatFormatting.GOLD).withItalic(false))
-                .append(Component.literal(CurrencyManager.format(total))
+                .append(Component.literal(CurrencyManager.formatShort(total))
                         .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW).withItalic(false))));
 
         if (server != null) {
@@ -175,7 +175,7 @@ public class BountyMenu extends ChestMenu {
             for (BountyEntry e : entries) {
                 AuctionBrowseMenu.appendLore(skull, Component.literal("  " + e.getPlacerName() + ": ")
                         .withStyle(Style.EMPTY.withColor(ChatFormatting.WHITE).withItalic(false))
-                        .append(Component.literal(CurrencyManager.format(e.getAmount()))
+                        .append(Component.literal(CurrencyManager.formatShort(e.getAmount()))
                                 .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW).withItalic(false))));
             }
         }

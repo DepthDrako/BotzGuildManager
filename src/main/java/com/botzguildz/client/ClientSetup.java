@@ -18,26 +18,30 @@ public class ClientSetup {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
-            MenuScreens.register(ModMenuTypes.UPGRADES_MENU.get(),     UpgradesScreen::new);
-            // Economy GUIs — all reuse the generic UpgradesScreen (suppresses inventory label)
-            MenuScreens.register(ModMenuTypes.AUCTION_BROWSE_MENU.get(), UpgradesScreen::new);
-            MenuScreens.register(ModMenuTypes.AUCTION_LIST_MENU.get(),   UpgradesScreen::new);
-            MenuScreens.register(ModMenuTypes.BOUNTY_MENU.get(),         UpgradesScreen::new);
-            MenuScreens.register(ModMenuTypes.SHOP_LIST_MENU.get(),      UpgradesScreen::new);
-            MenuScreens.register(ModMenuTypes.SHOP_VIEW_MENU.get(),      UpgradesScreen::new);
-            MenuScreens.register(ModMenuTypes.SHOP_CREATE_MENU.get(),   UpgradesScreen::new);
-            // Bank GUIs
-            MenuScreens.register(ModMenuTypes.PERSONAL_BANK_MENU.get(),  UpgradesScreen::new);
-            MenuScreens.register(ModMenuTypes.GUILD_BANK_MENU.get(),     UpgradesScreen::new);
-            // Guild Admin GUIs
-            MenuScreens.register(ModMenuTypes.GUILD_PERMISSIONS_MENU.get(), UpgradesScreen::new);
-            // Guild Bounty Board GUIs
-            MenuScreens.register(ModMenuTypes.BOUNTY_ITEM_PICKER_MENU.get(),  UpgradesScreen::new);
-            MenuScreens.register(ModMenuTypes.GUILD_BOUNTY_POST_MENU.get(),   UpgradesScreen::new);
-            MenuScreens.register(ModMenuTypes.GUILD_BOUNTY_BOARD_MENU.get(),  UpgradesScreen::new);
-            // Guild Missions & Vault GUIs
-            MenuScreens.register(ModMenuTypes.GUILD_MISSIONS_MENU.get(),      UpgradesScreen::new);
-            MenuScreens.register(ModMenuTypes.GUILD_VAULT_MENU.get(),         UpgradesScreen::new);
+            // ── Unique custom screens ──────────────────────────────────────────
+            MenuScreens.register(ModMenuTypes.BANK_TEST_MENU.get(), BankTestScreen::new);
+            MenuScreens.register(ModMenuTypes.UPGRADES_MENU.get(),  UpgradesScreen::new);
+
+            // ── All economy / guild chest GUIs → FantasyContainerScreen ───────
+            // Economy
+            MenuScreens.register(ModMenuTypes.AUCTION_BROWSE_MENU.get(),   FantasyContainerScreen::new);
+            MenuScreens.register(ModMenuTypes.AUCTION_LIST_MENU.get(),     FantasyContainerScreen::new);
+            MenuScreens.register(ModMenuTypes.BOUNTY_MENU.get(),           FantasyContainerScreen::new);
+            MenuScreens.register(ModMenuTypes.SHOP_LIST_MENU.get(),        FantasyContainerScreen::new);
+            MenuScreens.register(ModMenuTypes.SHOP_VIEW_MENU.get(),        FantasyContainerScreen::new);
+            MenuScreens.register(ModMenuTypes.SHOP_CREATE_MENU.get(),      FantasyContainerScreen::new);
+            // Bank
+            MenuScreens.register(ModMenuTypes.PERSONAL_BANK_MENU.get(),    FantasyContainerScreen::new);
+            MenuScreens.register(ModMenuTypes.GUILD_BANK_MENU.get(),       FantasyContainerScreen::new);
+            // Guild admin
+            MenuScreens.register(ModMenuTypes.GUILD_PERMISSIONS_MENU.get(), FantasyContainerScreen::new);
+            // Guild bounty board
+            MenuScreens.register(ModMenuTypes.BOUNTY_ITEM_PICKER_MENU.get(),  FantasyContainerScreen::new);
+            MenuScreens.register(ModMenuTypes.GUILD_BOUNTY_POST_MENU.get(),   FantasyContainerScreen::new);
+            MenuScreens.register(ModMenuTypes.GUILD_BOUNTY_BOARD_MENU.get(),  FantasyContainerScreen::new);
+            // Guild missions & vault
+            MenuScreens.register(ModMenuTypes.GUILD_MISSIONS_MENU.get(),      FantasyContainerScreen::new);
+            MenuScreens.register(ModMenuTypes.GUILD_VAULT_MENU.get(),         FantasyContainerScreen::new);
         });
     }
 }

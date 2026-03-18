@@ -44,6 +44,9 @@ public class CurrencyManager {
     public static String format(long amount)                        { return get().format(amount); }
     public static String currencyName()                             { return get().currencyName(); }
 
+    public static String    formatShort(long amount)                { return get().formatShort(amount); }
     public static ItemStack getDisplayItem()                        { return get().getDisplayItem(); }
+    public static long[]    getDenominations()                      { return get().getDenominations(); }
+    public static ItemStack getTierItem(int tierIndex)              { return get().getTierItem(tierIndex); }
     public static boolean isNumismatics() { return provider instanceof NumismaticsProvider; }
 }

@@ -308,13 +308,13 @@ public class AuctionBrowseMenu extends ChestMenu {
         if (listing.getType() == AuctionListing.Type.FIXED) {
             appendLore(display, Component.literal("Price: ")
                     .withStyle(Style.EMPTY.withColor(ChatFormatting.GOLD).withItalic(false))
-                    .append(Component.literal(CurrencyManager.format(listing.getPrice()))
+                    .append(Component.literal(CurrencyManager.formatShort(listing.getPrice()))
                             .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW).withItalic(false))));
             appendLore(display, lore("Click to buy", ChatFormatting.GREEN));
         } else {
             appendLore(display, Component.literal("Current Bid: ")
                     .withStyle(Style.EMPTY.withColor(ChatFormatting.GOLD).withItalic(false))
-                    .append(Component.literal(CurrencyManager.format(listing.getPrice()))
+                    .append(Component.literal(CurrencyManager.formatShort(listing.getPrice()))
                             .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW).withItalic(false))));
             appendLore(display, Component.literal("Time Left: ")
                     .withStyle(Style.EMPTY.withColor(ChatFormatting.AQUA).withItalic(false))

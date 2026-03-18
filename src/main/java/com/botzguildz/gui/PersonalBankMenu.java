@@ -81,8 +81,8 @@ public class PersonalBankMenu extends ChestMenu {
     // ── Tier metadata ─────────────────────────────────────────────────────────
 
     private static final String[] TIER_NAMES = {
-            "Guild Bit", "Guild Chip", "Guild Token",
-            "Guild Coin", "Guild Mark", "Guild Seal"
+            "GB", "GCh", "GT",
+            "GC", "GM",  "GS"
     };
 
     // ── Constructor ───────────────────────────────────────────────────────────
@@ -140,7 +140,7 @@ public class PersonalBankMenu extends ChestMenu {
         String sourceLabel = vaultReady ? "Vault Storage" : "On Hand";
         ItemStack sourceItem = new ItemStack(vaultReady ? Items.ENDER_CHEST : Items.GOLD_INGOT);
         sourceItem.setHoverName(styledName(sourceLabel, vaultReady ? ChatFormatting.GREEN : ChatFormatting.WHITE));
-        appendLore(sourceItem, lore(CurrencyManager.format(totalSourceValue), ChatFormatting.YELLOW));
+        appendLore(sourceItem, lore(CurrencyManager.formatShort(totalSourceValue), ChatFormatting.YELLOW));
         if (vaultReady) {
             assert vault != null;
             net.minecraft.core.BlockPos vp = vault.pos();
@@ -155,7 +155,7 @@ public class PersonalBankMenu extends ChestMenu {
         // Wallet slot
         ItemStack walletItem = new ItemStack(Items.ENDER_CHEST);
         walletItem.setHoverName(styledName("Wallet Balance", ChatFormatting.AQUA));
-        appendLore(walletItem, lore(CurrencyManager.format(walletBal), ChatFormatting.YELLOW));
+        appendLore(walletItem, lore(CurrencyManager.formatShort(walletBal), ChatFormatting.YELLOW));
         appendLore(walletItem, lore("Server-side coins (safe)", ChatFormatting.GRAY));
         appendLore(walletItem, lore("Used for AH, shops, bounties", ChatFormatting.DARK_GRAY));
         chest.setItem(WALLET_SLOT, walletItem);
@@ -164,7 +164,7 @@ public class PersonalBankMenu extends ChestMenu {
         ItemStack guildItem = new ItemStack(Items.CHEST);
         if (guild != null) {
             guildItem.setHoverName(styledName(guild.getName() + " Bank", ChatFormatting.GREEN));
-            appendLore(guildItem, lore(CurrencyManager.format(guild.getAvailableBalance()), ChatFormatting.YELLOW));
+            appendLore(guildItem, lore(CurrencyManager.formatShort(guild.getAvailableBalance()), ChatFormatting.YELLOW));
             appendLore(guildItem, lore("Available guild balance", ChatFormatting.GRAY));
             appendLore(guildItem, lore("Use Donate (below) to contribute", ChatFormatting.DARK_GRAY));
         } else {
@@ -180,7 +180,7 @@ public class PersonalBankMenu extends ChestMenu {
         appendLore(depLabel, lore("Click a coin below to deposit it", ChatFormatting.GRAY));
         appendLore(depLabel, lore("Left-click: 1 stack (64)", ChatFormatting.DARK_GRAY));
         appendLore(depLabel, lore("Shift-click: deposit all of that type", ChatFormatting.DARK_GRAY));
-        appendLore(depLabel, lore("Available in " + srcWord + ": " + CurrencyManager.format(totalSourceValue), ChatFormatting.YELLOW));
+        appendLore(depLabel, lore("Available in " + srcWord + ": " + CurrencyManager.formatShort(totalSourceValue), ChatFormatting.YELLOW));
         chest.setItem(DEP_LABEL, depLabel);
 
         for (int t = 0; t < 6; t++) {
@@ -191,7 +191,7 @@ public class PersonalBankMenu extends ChestMenu {
         depAll.setHoverName(styledName("Deposit All", ChatFormatting.GREEN));
         appendLore(depAll, lore("Sweep ALL currency from " + srcWord, ChatFormatting.GRAY));
         appendLore(depAll, lore("into your wallet", ChatFormatting.GRAY));
-        appendLore(depAll, lore("Total: " + CurrencyManager.format(totalSourceValue), ChatFormatting.YELLOW));
+        appendLore(depAll, lore("Total: " + CurrencyManager.formatShort(totalSourceValue), ChatFormatting.YELLOW));
         chest.setItem(DEP_ALL, depAll);
 
         // ── Row 3 — WITHDRAW ──────────────────────────────────────────────────
@@ -201,7 +201,7 @@ public class PersonalBankMenu extends ChestMenu {
         appendLore(wdLabel, lore("Click a coin below to withdraw it", ChatFormatting.GRAY));
         appendLore(wdLabel, lore("Left-click: 1 item", ChatFormatting.DARK_GRAY));
         appendLore(wdLabel, lore("Shift-click: 1 stack (64 or max)", ChatFormatting.DARK_GRAY));
-        appendLore(wdLabel, lore("Wallet: " + CurrencyManager.format(walletBal), ChatFormatting.YELLOW));
+        appendLore(wdLabel, lore("Wallet: " + CurrencyManager.formatShort(walletBal), ChatFormatting.YELLOW));
         chest.setItem(WD_LABEL, wdLabel);
 
         for (int t = 0; t < 6; t++) {
@@ -212,7 +212,7 @@ public class PersonalBankMenu extends ChestMenu {
         wdAll.setHoverName(styledName("Withdraw All", ChatFormatting.YELLOW));
         appendLore(wdAll, lore("Convert entire wallet balance", ChatFormatting.GRAY));
         appendLore(wdAll, lore("to physical items → " + dstWord, ChatFormatting.GRAY));
-        appendLore(wdAll, lore("Wallet: " + CurrencyManager.format(walletBal), ChatFormatting.YELLOW));
+        appendLore(wdAll, lore("Wallet: " + CurrencyManager.formatShort(walletBal), ChatFormatting.YELLOW));
         chest.setItem(WD_ALL, wdAll);
 
         // ── Row 4 — donate / pay ──────────────────────────────────────────────
@@ -221,7 +221,7 @@ public class PersonalBankMenu extends ChestMenu {
             donate.setHoverName(styledName("Guild Bank", ChatFormatting.GOLD));
             appendLore(donate, lore("Open the " + guild.getName() + " bank menu", ChatFormatting.GRAY));
             appendLore(donate, lore("Donate or withdraw from the guild treasury", ChatFormatting.DARK_GRAY));
-            appendLore(donate, lore("Treasury: " + CurrencyManager.format(guild.getAvailableBalance()), ChatFormatting.YELLOW));
+            appendLore(donate, lore("Treasury: " + CurrencyManager.formatShort(guild.getAvailableBalance()), ChatFormatting.YELLOW));
         } else {
             donate.setHoverName(styledName("Guild Bank", ChatFormatting.DARK_GRAY));
             appendLore(donate, lore("Join a guild first", ChatFormatting.RED));
@@ -257,7 +257,7 @@ public class PersonalBankMenu extends ChestMenu {
         int displayCount = (int) Math.min(countInSrc, 64);
         ItemStack s = new ItemStack(tierItem, displayCount);
         s.setHoverName(styledName("Deposit  " + name, ChatFormatting.GREEN));
-        appendLore(s, lore(countInSrc + " in " + srcWord + "  (worth " + CurrencyManager.format(countInSrc * value) + ")", ChatFormatting.YELLOW));
+        appendLore(s, lore(countInSrc + " in " + srcWord + "  (worth " + CurrencyManager.formatShort(countInSrc * value) + ")", ChatFormatting.YELLOW));
         appendLore(s, lore("Left-click: deposit 1 stack (up to 64)", ChatFormatting.GRAY));
         appendLore(s, lore("Shift-click: deposit all " + countInSrc, ChatFormatting.GRAY));
         return s;
@@ -269,14 +269,14 @@ public class PersonalBankMenu extends ChestMenu {
         if (canAfford <= 0) {
             ItemStack s = new ItemStack(Items.RED_STAINED_GLASS_PANE);
             s.setHoverName(styledName(name + " — Cannot afford", ChatFormatting.RED));
-            appendLore(s, lore("Need " + CurrencyManager.format(value) + " in wallet", ChatFormatting.DARK_GRAY));
+            appendLore(s, lore("Need " + CurrencyManager.formatShort(value) + " in wallet", ChatFormatting.DARK_GRAY));
             return s;
         }
         int displayCount = (int) Math.min(canAfford, 64);
         ItemStack s = new ItemStack(tierItem, displayCount);
         s.setHoverName(styledName("Withdraw  " + name, ChatFormatting.YELLOW));
-        appendLore(s, lore("Each costs " + CurrencyManager.format(value), ChatFormatting.GRAY));
-        appendLore(s, lore("Can afford: " + canAfford + "  (wallet: " + CurrencyManager.format(walletBal) + ")", ChatFormatting.YELLOW));
+        appendLore(s, lore("Each costs " + CurrencyManager.formatShort(value), ChatFormatting.GRAY));
+        appendLore(s, lore("Can afford: " + canAfford + "  (wallet: " + CurrencyManager.formatShort(walletBal) + ")", ChatFormatting.YELLOW));
         appendLore(s, lore("Left-click: withdraw 1", ChatFormatting.GRAY));
         appendLore(s, lore("Shift-click: withdraw up to 64", ChatFormatting.GRAY));
         return s;

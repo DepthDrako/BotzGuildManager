@@ -120,7 +120,7 @@ public class AuctionListMenu extends ChestMenu {
         ItemStack priceDisplay = new ItemStack(Items.GOLD_NUGGET);
         priceDisplay.setHoverName(AuctionBrowseMenu.styledName(
                 (listingType == AuctionListing.Type.FIXED ? "Price: " : "Starting Bid: ")
-                        + CurrencyManager.format(price), ChatFormatting.YELLOW));
+                        + CurrencyManager.formatShort(price), ChatFormatting.YELLOW));
         chest.setItem(PRICE_DISPLAY, priceDisplay);
 
         chest.setItem(BTN_PLUS_1,    priceBtn("+1",    ChatFormatting.GREEN));

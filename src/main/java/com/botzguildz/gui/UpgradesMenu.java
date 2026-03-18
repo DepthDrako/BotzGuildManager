@@ -160,7 +160,7 @@ public class UpgradesMenu extends ChestMenu {
         ItemStack bal = new ItemStack(Items.GOLD_INGOT);
         if (guild != null) {
             bal.setHoverName(styledName(
-                    "Guild Bank: " + CurrencyManager.format(guild.getAvailableBalance()),
+                    "Guild Bank: " + CurrencyManager.formatShort(guild.getAvailableBalance()),
                     ChatFormatting.GOLD));
             appendLore(bal, lore("Click an upgrade to purchase it", ChatFormatting.GRAY));
         } else {
@@ -234,7 +234,7 @@ public class UpgradesMenu extends ChestMenu {
         appendLore(item, Component.empty()
                 .append(Component.literal("Cost: ")
                         .withStyle(Style.EMPTY.withColor(ChatFormatting.GOLD).withItalic(false)))
-                .append(Component.literal(CurrencyManager.format(upgrade.getCost()))
+                .append(Component.literal(CurrencyManager.formatShort(upgrade.getCost()))
                         .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW).withItalic(false))));
         appendLore(item, Component.empty()
                 .append(Component.literal("Required Level: ")

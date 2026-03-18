@@ -5,6 +5,7 @@ import com.botzguildz.registry.ModItems;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /**
  * Physical-item currency provider using the six tiered guild currency items.
@@ -116,6 +117,23 @@ public class PhysicalItemProvider implements ICurrencyProvider {
         return sb.toString();
     }
 
+    private static final String[] TIER_ABBR = { "GB", "GCh", "GT", "GC", "GM", "GS" };
+
+    @Override
+    public String formatShort(long amount) {
+        if (amount == 0) return "0 GB";
+        StringBuilder sb = new StringBuilder();
+        long rem = amount;
+        for (int t = TIER_ABBR.length - 1; t >= 0; t--) {
+            long count = rem / TIER_VALUES[t];
+            if (count == 0) continue;
+            rem %= TIER_VALUES[t];
+            if (sb.length() > 0) sb.append("  ");
+            sb.append(count).append(TIER_ABBR[t]);
+        }
+        return sb.toString();
+    }
+
     @Override
     public String currencyName() {
         return "Guild Coins";
@@ -177,6 +195,18 @@ public class PhysicalItemProvider implements ICurrencyProvider {
     @Override
     public ItemStack getDisplayItem() {
         return new ItemStack(ModItems.GUILD_COIN.get());
+    }
+
+    @Override
+    public long[] getDenominations() {
+        return ModItems.TIER_VALUES;
+    }
+
+    @Override
+    public ItemStack getTierItem(int tierIndex) {
+        Item[] items = tierItems();
+        if (tierIndex < 0 || tierIndex >= items.length) return new ItemStack(Items.GOLD_NUGGET);
+        return new ItemStack(items[tierIndex]);
     }
 
     /** Human-readable tier name for format(). */

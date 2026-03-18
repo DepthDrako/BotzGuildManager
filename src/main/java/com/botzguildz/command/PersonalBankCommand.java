@@ -3,6 +3,7 @@ package com.botzguildz.command;
 import com.botzguildz.currency.CurrencyManager;
 import com.botzguildz.data.Guild;
 import com.botzguildz.data.GuildSavedData;
+import com.botzguildz.gui.BankTestMenu;
 import com.botzguildz.gui.PersonalBankMenu;
 import com.botzguildz.util.ChestStockHelper;
 import com.botzguildz.util.CurrencyParser;
@@ -34,6 +35,10 @@ public class PersonalBankCommand {
 
                 // /bank — open GUI
                 .executes(ctx -> openGui(ctx.getSource()))
+
+                // /bank test — open the custom fantasy GUI prototype
+                .then(Commands.literal("test")
+                        .executes(ctx -> openTestGui(ctx.getSource())))
 
                 // /bank balance
                 .then(Commands.literal("balance")
@@ -80,6 +85,27 @@ public class PersonalBankCommand {
                         .then(Commands.literal("clear")
                                 .executes(ctx -> clearVault(ctx.getSource()))))
         );
+    }
+
+    // ── /bank test — open custom fantasy GUI ──────────────────────────────────
+
+    private static int openTestGui(CommandSourceStack src) {
+        try {
+            ServerPlayer player = src.getPlayerOrException();
+            NetworkHooks.openScreen(player,
+                    new MenuProvider() {
+                        @Override public Component getDisplayName() { return Component.literal("Bank Test Custom GUI"); }
+                        @Override public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) {
+                            return new BankTestMenu(id, inv);
+                        }
+                    },
+                    buf -> { /* no extra data needed */ }
+            );
+        } catch (Exception e) {
+            src.sendFailure(MessageUtils.error("An error occurred: " + e.getMessage()));
+            return 0;
+        }
+        return 1;
     }
 
     // ── /bank — open GUI ──────────────────────────────────────────────────────
