@@ -23,6 +23,16 @@ public class Guild {
     private long bankBalance = 0;
     private long warEscrow = 0; // Locked portion of bankBalance during an active war
 
+    /**
+     * Per-rank daily withdrawal limits for the guild bank.
+     * Key = rank name (case-sensitive, matches GuildRank.getName()).
+     * Value:
+     *   0              = no withdrawal permission
+     *   Long.MAX_VALUE = unlimited
+     *   > 0            = daily cap in base currency units
+     */
+    private final Map<String, Long> rankWithdrawLimits = new HashMap<>();
+
     private int level = 1;
     private long experience = 0;
     private final Set<String> purchasedUpgrades = new LinkedHashSet<>();
@@ -55,6 +65,15 @@ public class Guild {
 
     private final List<String> activityLog = new ArrayList<>(); // newest first, max 50
 
+    /** Cumulative contribution points per member — never decremented. */
+    private final Map<UUID, Long> contributionPoints = new LinkedHashMap<>();
+
+    /**
+     * Open applications to this guild: playerUUID → timestamp submitted.
+     * Expires after 48 h; accepted/denied entries are removed immediately.
+     */
+    private final Map<UUID, Long> pendingApplications = new LinkedHashMap<>();
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     public Guild(UUID guildId, String name, String tag, UUID leaderUUID) {
@@ -65,8 +84,16 @@ public class Guild {
 
         ranks.add(GuildRank.leader());
         ranks.add(GuildRank.officer());
+        ranks.add(GuildRank.veteran());
         ranks.add(GuildRank.member());
         ranks.add(GuildRank.recruit());
+
+        // Default withdrawal limits: Leader + Officer unlimited, others none
+        rankWithdrawLimits.put("Leader",  Long.MAX_VALUE);
+        rankWithdrawLimits.put("Officer", Long.MAX_VALUE);
+        rankWithdrawLimits.put("Veteran", 0L);
+        rankWithdrawLimits.put("Member",  0L);
+        rankWithdrawLimits.put("Recruit", 0L);
     }
 
     // ── XP & Leveling ─────────────────────────────────────────────────────────
@@ -189,6 +216,51 @@ public class Guild {
         this.warEscrow = Math.max(0, warEscrow - amount);
     }
 
+    // ── Rank withdrawal limits ────────────────────────────────────────────────
+
+    /**
+     * Get the daily withdrawal limit for a named rank.
+     * 0 = no permission, Long.MAX_VALUE = unlimited, >0 = daily cap.
+     */
+    public long getRankDailyLimit(String rankName) {
+        return rankWithdrawLimits.getOrDefault(rankName, 0L);
+    }
+
+    /**
+     * Set the daily withdrawal limit for a rank.
+     * 0 = no permission, Long.MAX_VALUE = unlimited, >0 = daily cap (in base units).
+     */
+    public void setRankDailyLimit(String rankName, long limit) {
+        rankWithdrawLimits.put(rankName, limit);
+    }
+
+    public Map<String, Long> getRankWithdrawLimits() { return rankWithdrawLimits; }
+
+    /** Whether the given player is allowed to withdraw from the guild bank at all. */
+    public boolean canWithdrawFromBank(UUID playerUUID) {
+        if (playerUUID.equals(leaderUUID)) return true;
+        GuildRank rank = getMemberRank(playerUUID);
+        if (rank == null) return false;
+        return getRankDailyLimit(rank.getName()) != 0L;
+    }
+
+    /**
+     * How much this player can still withdraw today.
+     * Returns Long.MAX_VALUE for unlimited, 0 if no permission or limit exhausted.
+     *
+     * @param playerUUID          the player
+     * @param alreadyWithdrawnToday how much they've already pulled from the guild bank today
+     */
+    public long getRemainingDailyWithdraw(UUID playerUUID, long alreadyWithdrawnToday) {
+        if (playerUUID.equals(leaderUUID)) return Long.MAX_VALUE;
+        GuildRank rank = getMemberRank(playerUUID);
+        if (rank == null) return 0L;
+        long limit = getRankDailyLimit(rank.getName());
+        if (limit == 0L) return 0L;
+        if (limit == Long.MAX_VALUE) return Long.MAX_VALUE;
+        return Math.max(0L, limit - alreadyWithdrawnToday);
+    }
+
     // ── Upgrades ──────────────────────────────────────────────────────────────
 
     public boolean hasUpgrade(String upgradeId) { return purchasedUpgrades.contains(upgradeId); }
@@ -274,6 +346,24 @@ public class Guild {
         for (String entry : activityLog) logList.add(StringTag.valueOf(entry));
         tag.put("activityLog", logList);
 
+        // Rank withdraw limits
+        CompoundTag rwlTag = new CompoundTag();
+        for (Map.Entry<String, Long> e : rankWithdrawLimits.entrySet())
+            rwlTag.putLong(e.getKey(), e.getValue());
+        tag.put("rankWithdrawLimits", rwlTag);
+
+        // Contribution points
+        CompoundTag cpTag = new CompoundTag();
+        for (Map.Entry<UUID, Long> e : contributionPoints.entrySet())
+            cpTag.putLong(e.getKey().toString(), e.getValue());
+        tag.put("contributionPoints", cpTag);
+
+        // Pending applications
+        CompoundTag appTag = new CompoundTag();
+        for (Map.Entry<UUID, Long> e : pendingApplications.entrySet())
+            appTag.putLong(e.getKey().toString(), e.getValue());
+        tag.put("pendingApplications", appTag);
+
         return tag;
     }
 
@@ -327,6 +417,27 @@ public class Guild {
 
         ListTag logList = tag.getList("activityLog", Tag.TAG_STRING);
         for (Tag t : logList) guild.activityLog.add(t.getAsString());
+
+        // Rank withdraw limits (optional — old saves get defaults from constructor)
+        if (tag.contains("rankWithdrawLimits")) {
+            CompoundTag rwlTag = tag.getCompound("rankWithdrawLimits");
+            for (String key : rwlTag.getAllKeys())
+                guild.rankWithdrawLimits.put(key, rwlTag.getLong(key));
+        }
+
+        // Contribution points
+        if (tag.contains("contributionPoints")) {
+            CompoundTag cpTag = tag.getCompound("contributionPoints");
+            for (String key : cpTag.getAllKeys())
+                guild.contributionPoints.put(UUID.fromString(key), cpTag.getLong(key));
+        }
+
+        // Pending applications
+        if (tag.contains("pendingApplications")) {
+            CompoundTag appTag = tag.getCompound("pendingApplications");
+            for (String key : appTag.getAllKeys())
+                guild.pendingApplications.put(UUID.fromString(key), appTag.getLong(key));
+        }
 
         return guild;
     }
@@ -387,5 +498,45 @@ public class Guild {
     public ChatFormatting getChatColor() {
         ChatFormatting cf = ChatFormatting.getByName(chatColorName);
         return (cf != null && cf.isColor()) ? cf : ChatFormatting.GOLD;
+    }
+
+    // ── Contribution Points ───────────────────────────────────────────────────
+
+    public long getContribution(UUID playerUUID) {
+        return contributionPoints.getOrDefault(playerUUID, 0L);
+    }
+
+    public void addContribution(UUID playerUUID, long points) {
+        if (points <= 0) return;
+        contributionPoints.merge(playerUUID, points, Long::sum);
+    }
+
+    /** Returns a read-only snapshot sorted by contribution descending. */
+    public List<Map.Entry<UUID, Long>> getTopContributors() {
+        return contributionPoints.entrySet().stream()
+                .sorted(Map.Entry.<UUID, Long>comparingByValue().reversed())
+                .toList();
+    }
+
+    // ── Pending Applications ──────────────────────────────────────────────────
+
+    public Map<UUID, Long> getPendingApplications() { return pendingApplications; }
+
+    public void addPendingApplication(UUID playerUUID) {
+        pendingApplications.put(playerUUID, System.currentTimeMillis());
+    }
+
+    public void removePendingApplication(UUID playerUUID) {
+        pendingApplications.remove(playerUUID);
+    }
+
+    public boolean hasPendingApplication(UUID playerUUID) {
+        return pendingApplications.containsKey(playerUUID);
+    }
+
+    /** Removes applications older than 48 h. */
+    public void pruneExpiredApplications() {
+        long cutoff = System.currentTimeMillis() - 172_800_000L; // 48 h
+        pendingApplications.values().removeIf(ts -> ts < cutoff);
     }
 }

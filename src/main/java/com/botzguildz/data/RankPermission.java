@@ -12,5 +12,8 @@ public enum RankPermission {
     MANAGE_UPGRADES,  // Can purchase guild upgrades
     TOGGLE_FF,        // Can toggle friendly fire
     SET_HOME,         // Can set the guild home
-    MANAGE_ALLIES     // Can invite or break alliances
+    MANAGE_ALLIES,    // Can invite or break alliances
+    MANAGE_BOUNTIES,  // Can post and cancel guild item-collection bounties
+    MANAGE_VAULT,     // Can withdraw items from the guild vault (all members can deposit)
+    MANAGE_MISSIONS   // Can force-refresh guild missions early
 }

@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {"item": "botzguildz:guild_coin"},
+    {"item": "botzguildz:guild_coin"},
+    {"item": "botzguildz:guild_coin"},
+    {"item": "botzguildz:guild_coin"},
+    {"item": "botzguildz:guild_coin"},
+    {"item": "botzguildz:guild_coin"},
+    {"item": "botzguildz:guild_coin"},
+    {"item": "botzguildz:guild_coin"}
+  ],
+  "result": {
+    "item": "botzguildz:guild_mark",
+    "count": 1
+  }
+}

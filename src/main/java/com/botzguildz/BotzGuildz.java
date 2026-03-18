@@ -1,14 +1,21 @@
 package com.botzguildz;
 
+import com.botzguildz.command.AuctionHouseCommand;
+import com.botzguildz.command.BountyCommand;
 import com.botzguildz.command.GuildCommand;
 import com.botzguildz.command.DuelCommand;
+import com.botzguildz.command.PersonalBankCommand;
 import com.botzguildz.command.RaidCommand;
+import com.botzguildz.command.ShopCommand;
+import com.botzguildz.event.EconomyEventHandler;
 import com.botzguildz.event.RaidEventHandler;
 import com.botzguildz.config.GuildConfig;
 import com.botzguildz.currency.CurrencyManager;
 import com.botzguildz.event.GuildEventHandler;
 import com.botzguildz.event.DuelEventHandler;
 import com.botzguildz.ftb.FTBBridge;
+import com.botzguildz.registry.ModCreativeTabs;
+import com.botzguildz.registry.ModItems;
 import com.botzguildz.registry.ModMenuTypes;
 import com.botzguildz.upgrade.UpgradeRegistry;
 import com.mojang.logging.LogUtils;
@@ -34,7 +41,9 @@ public class BotzGuildz {
         IEventBus modEventBus = context.getModEventBus();
         modEventBus.addListener(this::commonSetup);
 
-        // Register the Upgrades GUI menu type on the mod event bus
+        // Register items, creative tabs, and menu types on the mod event bus
+        ModItems.register(modEventBus);
+        ModCreativeTabs.register(modEventBus);
         ModMenuTypes.register(modEventBus);
 
         // Register server config — creates botzguildz-server.toml in the server config dir
@@ -45,6 +54,7 @@ public class BotzGuildz {
         MinecraftForge.EVENT_BUS.register(new GuildEventHandler());
         MinecraftForge.EVENT_BUS.register(new DuelEventHandler());
         MinecraftForge.EVENT_BUS.register(new RaidEventHandler());
+        MinecraftForge.EVENT_BUS.register(new EconomyEventHandler());
 
         // Register datapack reload listeners for the upgrade system
         MinecraftForge.EVENT_BUS.addListener(UpgradeRegistry::registerListeners);
@@ -63,6 +73,10 @@ public class BotzGuildz {
         GuildCommand.register(event.getDispatcher());
         DuelCommand.register(event.getDispatcher());
         RaidCommand.register(event.getDispatcher());
+        AuctionHouseCommand.register(event.getDispatcher());
+        BountyCommand.register(event.getDispatcher());
+        ShopCommand.register(event.getDispatcher());
+        PersonalBankCommand.register(event.getDispatcher());
         LOGGER.info("[BotzGuildz] Commands registered.");
     }
 }

@@ -5,6 +5,10 @@ import com.botzguildz.data.*;
 import com.botzguildz.dimension.ArenaGenerator;
 import com.botzguildz.dimension.ArenaManager;
 import com.botzguildz.ftb.FTBBridge;
+import com.botzguildz.gui.GuildBountyBoardMenu;
+import com.botzguildz.gui.GuildPermissionsMenu;
+import com.botzguildz.gui.GuildMissionsMenu;
+import com.botzguildz.gui.GuildVaultMenu;
 import com.botzguildz.util.GuildUtils;
 import com.botzguildz.util.MessageUtils;
 import com.mojang.brigadier.CommandDispatcher;
@@ -19,8 +23,14 @@ import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraftforge.network.NetworkHooks;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class GuildCommand {
@@ -179,13 +189,50 @@ public class GuildCommand {
                         .then(Commands.literal("reset")
                                 .executes(ctx -> adminArenaReset(ctx.getSource()))));
 
+        // ── /guild permissions edit ───────────────────────────────────────────
+        guild.then(Commands.literal("permissions")
+                .requires(src -> src.isPlayer())
+                .then(Commands.literal("edit")
+                        .executes(ctx -> openPermissionsGui(ctx.getSource()))));
+
         // Register subcommand groups
+        GuildBountyCommand.register(guild);
         GuildBankCommand.register(guild);
         GuildRankCommand.register(guild);
         GuildUpgradeCommand.register(guild);
         GuildAllyCommand.register(guild);
         GuildWarCommand.register(guild);
         GuildLeaderboardCommand.register(guild);
+        GuildShopCommand.register(guild);
+        GuildMissionsCommand.register(guild);
+        GuildVaultCommand.register(guild);
+
+        // ── /guild apply <guildName> ──────────────────────────────────────────
+        guild.then(Commands.literal("apply")
+                .then(Commands.argument("guildName", StringArgumentType.word())
+                        .suggests(SUGGEST_ALL_GUILDS)
+                        .executes(ctx -> applyToGuild(ctx.getSource(),
+                                StringArgumentType.getString(ctx, "guildName")))));
+
+        // ── /guild accept <playerName> ────────────────────────────────────────
+        guild.then(Commands.literal("accept")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .executes(ctx -> acceptApplication(ctx.getSource(),
+                                StringArgumentType.getString(ctx, "player")))));
+
+        // ── /guild deny <playerName> ──────────────────────────────────────────
+        guild.then(Commands.literal("deny")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .executes(ctx -> denyApplication(ctx.getSource(),
+                                StringArgumentType.getString(ctx, "player")))));
+
+        // ── /guild applications ───────────────────────────────────────────────
+        guild.then(Commands.literal("applications")
+                .executes(ctx -> listApplications(ctx.getSource())));
+
+        // ── /guild contributions ──────────────────────────────────────────────
+        guild.then(Commands.literal("contributions")
+                .executes(ctx -> listContributions(ctx.getSource())));
 
         dispatcher.register(guild);
 
@@ -738,5 +785,219 @@ public class GuildCommand {
 
         } catch (Exception e) { src.sendFailure(MessageUtils.error("An error occurred: " + e.getMessage())); }
         return 1;
+    }
+
+    // ── /guild permissions edit ───────────────────────────────────────────────
+
+    private static int openPermissionsGui(CommandSourceStack src) {
+        try {
+            ServerPlayer player = src.getPlayerOrException();
+            Guild guild = GuildUtils.getGuildOf(player);
+            if (guild == null) { src.sendFailure(MessageUtils.error("You are not in a guild.")); return 0; }
+            if (!guild.hasPermission(player.getUUID(), RankPermission.MANAGE_RANKS)) {
+                src.sendFailure(MessageUtils.error("You don't have permission to manage ranks.")); return 0;
+            }
+
+            NetworkHooks.openScreen(player,
+                    new MenuProvider() {
+                        @Override public Component getDisplayName() { return Component.literal("Rank Permissions"); }
+                        @Override public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) {
+                            return new GuildPermissionsMenu(id, inv);
+                        }
+                    },
+                    buf -> {}
+            );
+        } catch (Exception e) { src.sendFailure(MessageUtils.error("An error occurred.")); }
+        return 1;
+    }
+
+    // ── /guild apply <guildName> ──────────────────────────────────────────────
+
+    private static int applyToGuild(CommandSourceStack src, String guildName) {
+        try {
+            ServerPlayer player = src.getPlayerOrException();
+            MinecraftServer server = player.getServer();
+            GuildSavedData data = GuildSavedData.get(server);
+
+            if (data.isInGuild(player.getUUID())) {
+                src.sendFailure(MessageUtils.error("You are already in a guild.")); return 0;
+            }
+            Guild target = data.getGuildByName(guildName);
+            if (target == null) {
+                src.sendFailure(MessageUtils.error("No guild named '" + guildName + "' exists.")); return 0;
+            }
+            if (target.hasPendingApplication(player.getUUID())) {
+                src.sendFailure(MessageUtils.error("You already have a pending application to that guild.")); return 0;
+            }
+
+            target.addPendingApplication(player.getUUID());
+            data.setDirty();
+
+            src.sendSuccess(() -> MessageUtils.success(
+                    "Application sent to " + target.getName() + "! Officers will review it soon."), false);
+
+            // Notify online officers
+            String playerName = player.getName().getString();
+            MessageUtils.broadcastToOfficers(target,
+                    MessageUtils.info("📋 " + playerName + " has applied to join the guild! Use /guild accept " + playerName + " or /guild deny " + playerName + "."),
+                    server);
+            return 1;
+        } catch (Exception e) {
+            src.sendFailure(MessageUtils.error("Error: " + e.getMessage())); return 0;
+        }
+    }
+
+    // ── /guild accept <playerName> ────────────────────────────────────────────
+
+    private static int acceptApplication(CommandSourceStack src, String playerName) {
+        try {
+            ServerPlayer officer = src.getPlayerOrException();
+            MinecraftServer server = officer.getServer();
+            GuildSavedData data = GuildSavedData.get(server);
+
+            Guild guild = GuildUtils.getGuildOf(officer);
+            if (guild == null) { src.sendFailure(MessageUtils.error("You are not in a guild.")); return 0; }
+            if (!guild.hasPermission(officer.getUUID(), RankPermission.INVITE)) {
+                src.sendFailure(MessageUtils.error("You don't have permission to accept members.")); return 0;
+            }
+
+            // Find applicant UUID from pending applications
+            UUID applicantUUID = null;
+            for (UUID uuid : guild.getPendingApplications().keySet()) {
+                ServerPlayer candidate = server.getPlayerList().getPlayer(uuid);
+                String candidateName = candidate != null ? candidate.getName().getString()
+                        : server.getProfileCache() != null
+                                ? server.getProfileCache().get(uuid).map(p -> p.getName()).orElse("")
+                                : "";
+                if (candidateName.equalsIgnoreCase(playerName)) { applicantUUID = uuid; break; }
+            }
+            if (applicantUUID == null) {
+                src.sendFailure(MessageUtils.error("No pending application from '" + playerName + "'.")); return 0;
+            }
+            if (data.isInGuild(applicantUUID)) {
+                guild.removePendingApplication(applicantUUID);
+                data.setDirty();
+                src.sendFailure(MessageUtils.error("That player has already joined another guild.")); return 0;
+            }
+
+            ServerPlayer applicant = server.getPlayerList().getPlayer(applicantUUID);
+            guild.removePendingApplication(applicantUUID);
+
+            if (applicant != null) {
+                boolean added = data.addMemberToGuild(guild.getGuildId(), applicant);
+                if (!added) {
+                    src.sendFailure(MessageUtils.error("Could not add member — guild may be full.")); return 0;
+                }
+                applicant.sendSystemMessage(MessageUtils.success("Your application to " + guild.getName() + " was accepted! Welcome!"));
+                MessageUtils.broadcastToGuild(guild, MessageUtils.success("📋 " + applicant.getName().getString() + " has joined the guild!"), server);
+            } else {
+                src.sendFailure(MessageUtils.error(playerName + " must be online to join.")); return 0;
+            }
+            data.setDirty();
+            src.sendSuccess(() -> MessageUtils.success("Accepted " + playerName + " into the guild."), false);
+            return 1;
+        } catch (Exception e) {
+            src.sendFailure(MessageUtils.error("Error: " + e.getMessage())); return 0;
+        }
+    }
+
+    // ── /guild deny <playerName> ──────────────────────────────────────────────
+
+    private static int denyApplication(CommandSourceStack src, String playerName) {
+        try {
+            ServerPlayer officer = src.getPlayerOrException();
+            MinecraftServer server = officer.getServer();
+            GuildSavedData data = GuildSavedData.get(server);
+
+            Guild guild = GuildUtils.getGuildOf(officer);
+            if (guild == null) { src.sendFailure(MessageUtils.error("You are not in a guild.")); return 0; }
+            if (!guild.hasPermission(officer.getUUID(), RankPermission.INVITE)) {
+                src.sendFailure(MessageUtils.error("You don't have permission to manage applications.")); return 0;
+            }
+
+            UUID applicantUUID = null;
+            for (UUID uuid : guild.getPendingApplications().keySet()) {
+                ServerPlayer candidate = server.getPlayerList().getPlayer(uuid);
+                String candidateName = candidate != null ? candidate.getName().getString() : "";
+                if (candidateName.equalsIgnoreCase(playerName)) { applicantUUID = uuid; break; }
+            }
+            if (applicantUUID == null) {
+                src.sendFailure(MessageUtils.error("No pending application from '" + playerName + "'.")); return 0;
+            }
+
+            guild.removePendingApplication(applicantUUID);
+            data.setDirty();
+
+            ServerPlayer applicant = server.getPlayerList().getPlayer(applicantUUID);
+            if (applicant != null) {
+                applicant.sendSystemMessage(MessageUtils.info("Your application to " + guild.getName() + " was declined."));
+            }
+            src.sendSuccess(() -> MessageUtils.info("Denied " + playerName + "'s application."), false);
+            return 1;
+        } catch (Exception e) {
+            src.sendFailure(MessageUtils.error("Error: " + e.getMessage())); return 0;
+        }
+    }
+
+    // ── /guild applications ───────────────────────────────────────────────────
+
+    private static int listApplications(CommandSourceStack src) {
+        try {
+            ServerPlayer player = src.getPlayerOrException();
+            Guild guild = GuildUtils.getGuildOf(player);
+            if (guild == null) { src.sendFailure(MessageUtils.error("You are not in a guild.")); return 0; }
+            if (!guild.hasPermission(player.getUUID(), RankPermission.INVITE)) {
+                src.sendFailure(MessageUtils.error("You don't have permission to view applications.")); return 0;
+            }
+
+            guild.pruneExpiredApplications();
+            var apps = guild.getPendingApplications();
+            src.sendSuccess(() -> MessageUtils.header("Pending Applications (" + apps.size() + ")"), false);
+            if (apps.isEmpty()) {
+                src.sendSuccess(() -> MessageUtils.info("No pending applications."), false);
+            } else {
+                MinecraftServer server = player.getServer();
+                for (UUID uuid : apps.keySet()) {
+                    ServerPlayer applicant = server.getPlayerList().getPlayer(uuid);
+                    String name = applicant != null ? applicant.getName().getString() : uuid.toString().substring(0, 8) + "... (offline)";
+                    src.sendSuccess(() -> MessageUtils.info("• " + name + "  — /guild accept " + name + " or /guild deny " + name), false);
+                }
+            }
+            return 1;
+        } catch (Exception e) {
+            src.sendFailure(MessageUtils.error("Error: " + e.getMessage())); return 0;
+        }
+    }
+
+    // ── /guild contributions ──────────────────────────────────────────────────
+
+    private static int listContributions(CommandSourceStack src) {
+        try {
+            ServerPlayer player = src.getPlayerOrException();
+            MinecraftServer server = player.getServer();
+            Guild guild = GuildUtils.getGuildOf(player);
+            if (guild == null) { src.sendFailure(MessageUtils.error("You are not in a guild.")); return 0; }
+
+            var top = guild.getTopContributors();
+            src.sendSuccess(() -> MessageUtils.header("Guild Contributions — Top Members"), false);
+            if (top.isEmpty()) {
+                src.sendSuccess(() -> MessageUtils.info("No contributions recorded yet."), false);
+            } else {
+                int limit = Math.min(10, top.size());
+                for (int i = 0; i < limit; i++) {
+                    Map.Entry<UUID, Long> entry = top.get(i);
+                    GuildMember member = guild.getMember(entry.getKey());
+                    String name = member != null ? member.getPlayerName() : entry.getKey().toString().substring(0, 8);
+                    long pts = entry.getValue();
+                    int rank = i + 1;
+                    src.sendSuccess(() -> MessageUtils.info(rank + ". " + name + "  —  " + pts + " pts"), false);
+                }
+            }
+            long myPts = guild.getContribution(player.getUUID());
+            src.sendSuccess(() -> MessageUtils.info("Your contribution: " + myPts + " pts"), false);
+            return 1;
+        } catch (Exception e) {
+            src.sendFailure(MessageUtils.error("Error: " + e.getMessage())); return 0;
+        }
     }
 }

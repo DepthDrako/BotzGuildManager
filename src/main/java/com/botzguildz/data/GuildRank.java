@@ -34,16 +34,21 @@ public class GuildRank {
     }
 
     public static GuildRank officer() {
-        return new GuildRank("Officer", 300, false,
+        return new GuildRank("Officer", 400, false,
                 EnumSet.of(RankPermission.INVITE, RankPermission.KICK,
                         RankPermission.MANAGE_BANK, RankPermission.DECLARE_WAR,
                         RankPermission.MANAGE_UPGRADES, RankPermission.SET_HOME,
                         RankPermission.MANAGE_ALLIES));
     }
 
+    public static GuildRank veteran() {
+        return new GuildRank("Veteran", 300, false,
+                EnumSet.of(RankPermission.INVITE, RankPermission.SET_HOME));
+    }
+
     public static GuildRank member() {
         return new GuildRank("Member", 200, true,
-                EnumSet.of(RankPermission.MANAGE_BANK));
+                EnumSet.noneOf(RankPermission.class));
     }
 
     public static GuildRank recruit() {

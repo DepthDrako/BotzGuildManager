@@ -43,6 +43,11 @@ public class MessageUtils {
         return Component.literal("[" + guild.getTag() + "-OFC] ").withStyle(guild.getChatColor());
     }
 
+    /** "[ALLY] [TAG] " prefix — gold ally marker followed by the guild's tag in its colour. */
+    public static MutableComponent allyPrefix(Guild guild) {
+        return Component.literal("[ALLY] ").withStyle(GOLD).append(guildPrefix(guild));
+    }
+
     // ── System messages ───────────────────────────────────────────────────────
 
     public static MutableComponent success(String text) {

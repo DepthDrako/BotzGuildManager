@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {"item": "botzguildz:guild_chip"}
+  ],
+  "result": {
+    "item": "botzguildz:guild_bit",
+    "count": 8
+  }
+}

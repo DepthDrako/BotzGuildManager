@@ -90,6 +90,18 @@ public class FTBBridge {
         catch (NoSuchMethodException e) { return null; }
     }
 
+    /**
+     * Returns the first enum constant in {@code enumClass} whose name matches any of
+     * the supplied {@code names}, or {@code null} if none match.
+     */
+    private static Object findEnumConstant(Class<?> enumClass, String... names) {
+        for (Object constant : enumClass.getEnumConstants()) {
+            String n = ((Enum<?>) constant).name();
+            for (String name : names) if (n.equals(name)) return constant;
+        }
+        return null;
+    }
+
     /** Unwraps an Optional result; returns it as-is if it is not an Optional. */
     private static Object unwrapOptional(Object o) {
         if (o instanceof Optional<?> opt) return opt.orElse(null);
@@ -458,6 +470,95 @@ public class FTBBridge {
             } catch (Exception ignored) {}
         }
         return null;
+    }
+
+    // ── FTB Teams — alliance relation ────────────────────────────────────────
+
+    /**
+     * Propagate an alliance change into FTB Teams so that FTBChunks can render
+     * the two guilds' claimed chunks in a distinctive "allied" colour on the map.
+     *
+     * <p>When {@code allied=true}, attempts to set the FTB team relation between
+     * {@code a}'s party and {@code b}'s party to {@code TeamRelation.ALLY} (or
+     * equivalent enum constant).  When {@code allied=false}, reverts to
+     * {@code TeamRelation.NEUTRAL}.
+     *
+     * <p>The call is a best-effort — if the FTB Teams API version in use does not
+     * expose a {@code setRelation} method the operation silently no-ops so that
+     * the BotzGuildz alliance still works without FTB Teams.
+     *
+     * @param a      first guild
+     * @param b      second guild
+     * @param server running server
+     * @param allied {@code true} to mark as allies, {@code false} to clear
+     */
+    public static void syncAllianceRelation(Guild a, Guild b, MinecraftServer server, boolean allied) {
+        if (!teamsAvailable || server == null) return;
+        if (a.getFtbTeamId() == null || b.getFtbTeamId() == null) return;
+        try {
+            Object manager = getTeamManager(server);
+            if (manager == null) return;
+
+            Object teamA = getTeamByID(manager, a.getFtbTeamId());
+            Object teamB = getTeamByID(manager, b.getFtbTeamId());
+            if (teamA == null || teamB == null) return;
+
+            // Resolve the TeamRelation enum class (location varies by FTBTeams version)
+            Class<?> relationClass = null;
+            for (String className : new String[]{
+                    "dev.ftb.mods.ftbteams.api.TeamRelation",
+                    "dev.ftb.mods.ftbteams.data.TeamRelation",
+                    "dev.ftb.mods.ftbteams.TeamRelation"}) {
+                try { relationClass = Class.forName(className); break; }
+                catch (ClassNotFoundException ignored) {}
+            }
+            if (relationClass == null || !relationClass.isEnum()) {
+                BotzGuildz.LOGGER.debug("[BotzGuildz] FTBBridge: syncAllianceRelation — TeamRelation enum not found; skipping.");
+                return;
+            }
+
+            Object allyConst    = findEnumConstant(relationClass, "ALLY", "ALLIED");
+            Object neutralConst = findEnumConstant(relationClass, "NEUTRAL", "NONE");
+
+            Object relation = allied ? allyConst : neutralConst;
+            if (relation == null) {
+                BotzGuildz.LOGGER.warn("[BotzGuildz] FTBBridge: syncAllianceRelation — TeamRelation has no {} constant; relation not set.",
+                        allied ? "ALLY/ALLIED" : "NEUTRAL/NONE");
+                return;
+            }
+
+            Class<?> mgCls = manager.getClass();
+
+            // Try manager.setRelation(Team, Team, TeamRelation) — probe each Team interface
+            for (Class<?> iface : teamA.getClass().getInterfaces()) {
+                for (String name : new String[]{"setRelation", "setTeamRelation", "addRelation"}) {
+                    // (Team, Team, TeamRelation)
+                    Method m = findMethod(mgCls, name, iface, iface, relationClass);
+                    if (m != null) {
+                        try { m.invoke(manager, teamA, teamB, relation); return; } catch (Exception ignored) {}
+                    }
+                    // (Team, TeamRelation) directly on teamA
+                    m = findMethod(teamA.getClass(), name, iface, relationClass);
+                    if (m != null) {
+                        try { m.invoke(teamA, teamB, relation); return; } catch (Exception ignored) {}
+                    }
+                }
+            }
+
+            // UUID overloads: manager.setRelation(UUID, UUID, TeamRelation)
+            for (String name : new String[]{"setRelation", "setTeamRelation", "addRelation"}) {
+                Method m = findMethod(mgCls, name, UUID.class, UUID.class, relationClass);
+                if (m != null) {
+                    try { m.invoke(manager, a.getFtbTeamId(), b.getFtbTeamId(), relation); return; }
+                    catch (Exception ignored) {}
+                }
+            }
+
+            BotzGuildz.LOGGER.debug("[BotzGuildz] FTBBridge: syncAllianceRelation — no suitable setRelation method found on {}.", mgCls.getName());
+
+        } catch (Exception e) {
+            BotzGuildz.LOGGER.debug("[BotzGuildz] FTBBridge: syncAllianceRelation failed: {}", e.getMessage());
+        }
     }
 
     // ── FTB Chunks — chunk-claim bonus ───────────────────────────────────────

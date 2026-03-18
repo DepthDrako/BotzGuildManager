@@ -50,11 +50,29 @@ public class GuildSavedData extends SavedData {
     private final Map<UUID, Integer> playerDuelWins = new HashMap<>();
 
     /**
+     * Physical bank vaults: a player can register any storage block as their
+     * personal bank vault.  Deposit/withdraw then operate on that block instead
+     * of the player's inventory.
+     */
+    private final Map<UUID, BankVault> playerVaults = new HashMap<>();
+
+    /** Immutable value-type storing a vault's world location. */
+    public record BankVault(net.minecraft.core.BlockPos pos, String dimensionId) {}
+
+    /**
      * When true, guild wars skip arena generation and always battle in the
      * fixed production arena at (CUSTOM_ARENA_CX, CUSTOM_ARENA_CZ).
      * Admins enable this via /guild arena edit and disable via /guild arena reset.
      */
     private boolean customArena = false;
+
+    /**
+     * Daily guild bank withdrawal tracking.
+     * epoch-day and amount withdrawn from any guild's bank, per player UUID.
+     * Resets automatically when a new day begins.
+     */
+    private final Map<UUID, Long> withdrawDay    = new HashMap<>(); // epoch day (LocalDate)
+    private final Map<UUID, Long> withdrawAmount = new HashMap<>(); // base-currency units today
 
     // ── Access ────────────────────────────────────────────────────────────────
 
@@ -379,6 +397,55 @@ public class GuildSavedData extends SavedData {
         return true;
     }
 
+    // ── Bank Vaults ───────────────────────────────────────────────────────────
+
+    /** Register (or replace) the bank vault block for a player. */
+    public void setBankVault(UUID playerUUID, net.minecraft.core.BlockPos pos, String dimensionId) {
+        playerVaults.put(playerUUID, new BankVault(pos, dimensionId));
+        setDirty();
+    }
+
+    /** Returns the player's registered vault, or {@code null} if none is set. */
+    public BankVault getBankVault(UUID playerUUID) {
+        return playerVaults.get(playerUUID);
+    }
+
+    /** Clear the player's vault registration (does NOT touch the physical block). */
+    public void clearBankVault(UUID playerUUID) {
+        if (playerVaults.remove(playerUUID) != null) setDirty();
+    }
+
+    /**
+     * Find which player (if any) has registered a vault at the given world position.
+     * Used by the right-click and block-break event handlers.
+     */
+    public java.util.Optional<UUID> getVaultOwnerAt(net.minecraft.core.BlockPos pos, String dimensionId) {
+        return playerVaults.entrySet().stream()
+                .filter(e -> e.getValue().pos().equals(pos)
+                          && e.getValue().dimensionId().equals(dimensionId))
+                .map(Map.Entry::getKey)
+                .findFirst();
+    }
+
+    // ── Guild Bank Daily Withdrawal Tracking ──────────────────────────────────
+
+    /** How much currency this player has withdrawn from any guild bank today. */
+    public long getDailyWithdrawn(UUID playerUUID) {
+        long today = java.time.LocalDate.now().toEpochDay();
+        long storedDay = withdrawDay.getOrDefault(playerUUID, -1L);
+        if (storedDay != today) return 0L;
+        return withdrawAmount.getOrDefault(playerUUID, 0L);
+    }
+
+    /** Record that this player withdrew {@code amount} from the guild bank today. */
+    public void addDailyWithdrawn(UUID playerUUID, long amount) {
+        long today   = java.time.LocalDate.now().toEpochDay();
+        long current = getDailyWithdrawn(playerUUID);
+        withdrawDay.put(playerUUID, today);
+        withdrawAmount.put(playerUUID, current + amount);
+        setDirty();
+    }
+
     // ── Leaderboard Queries ───────────────────────────────────────────────────
 
     /** Returns top N guilds sorted by available bank balance, descending. */
@@ -490,8 +557,31 @@ public class GuildSavedData extends SavedData {
             duelWinsTag.putInt(e.getKey().toString(), e.getValue());
         tag.put("playerDuelWins", duelWinsTag);
 
+        // Bank vaults
+        CompoundTag vaultsTag = new CompoundTag();
+        for (Map.Entry<UUID, BankVault> e : playerVaults.entrySet()) {
+            CompoundTag v = new CompoundTag();
+            v.putInt("x", e.getValue().pos().getX());
+            v.putInt("y", e.getValue().pos().getY());
+            v.putInt("z", e.getValue().pos().getZ());
+            v.putString("dim", e.getValue().dimensionId());
+            vaultsTag.put(e.getKey().toString(), v);
+        }
+        tag.put("playerVaults", vaultsTag);
+
         // Arena settings
         tag.putBoolean("customArena", customArena);
+
+        // Daily withdrawal tracking
+        CompoundTag wdDayTag = new CompoundTag();
+        for (Map.Entry<UUID, Long> e : withdrawDay.entrySet())
+            wdDayTag.putLong(e.getKey().toString(), e.getValue());
+        tag.put("withdrawDay", wdDayTag);
+
+        CompoundTag wdAmtTag = new CompoundTag();
+        for (Map.Entry<UUID, Long> e : withdrawAmount.entrySet())
+            wdAmtTag.putLong(e.getKey().toString(), e.getValue());
+        tag.put("withdrawAmount", wdAmtTag);
 
         return tag;
     }
@@ -534,8 +624,26 @@ public class GuildSavedData extends SavedData {
         for (String key : duelWinsTag.getAllKeys())
             data.playerDuelWins.put(UUID.fromString(key), duelWinsTag.getInt(key));
 
+        // Bank vaults
+        CompoundTag vaultsTag = tag.getCompound("playerVaults");
+        for (String key : vaultsTag.getAllKeys()) {
+            CompoundTag v = vaultsTag.getCompound(key);
+            net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(
+                    v.getInt("x"), v.getInt("y"), v.getInt("z"));
+            data.playerVaults.put(UUID.fromString(key), new BankVault(pos, v.getString("dim")));
+        }
+
         // Arena settings (graceful default: false = auto-generate per war)
         if (tag.contains("customArena")) data.customArena = tag.getBoolean("customArena");
+
+        // Daily withdrawal tracking (optional — new fields, old saves start at 0)
+        CompoundTag wdDayTag = tag.getCompound("withdrawDay");
+        for (String key : wdDayTag.getAllKeys())
+            data.withdrawDay.put(UUID.fromString(key), wdDayTag.getLong(key));
+
+        CompoundTag wdAmtTag = tag.getCompound("withdrawAmount");
+        for (String key : wdAmtTag.getAllKeys())
+            data.withdrawAmount.put(UUID.fromString(key), wdAmtTag.getLong(key));
 
         return data;
     }

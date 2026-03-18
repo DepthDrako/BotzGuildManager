@@ -1,5 +1,6 @@
 package com.botzguildz.event;
 
+import com.botzguildz.command.GuildAllyCommand;
 import com.botzguildz.config.GuildConfig;
 import com.botzguildz.currency.CurrencyManager;
 import com.botzguildz.data.*;
@@ -11,19 +12,26 @@ import com.botzguildz.util.GuildUtils;
 import com.botzguildz.util.MessageUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.OnDatapackSyncEvent;
+import net.minecraftforge.event.ServerChatEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent;
+import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.List;
 import java.util.UUID;
@@ -44,6 +52,16 @@ public class GuildEventHandler {
 
         MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
+
+        // Run mission tick every 60 seconds (1200 ticks) to auto-generate missions
+        if (tickCounter % 1200 == 0) {
+            GuildMissionsData.get(server).tick(server);
+        }
+
+        // Prune expired ally-TP cooldown entries every 5 minutes
+        if (tickCounter % 6000 == 0) {
+            GuildAllyCommand.pruneExpiredCooldowns();
+        }
 
         GuildSavedData data = GuildSavedData.get(server);
         data.tick(server);
@@ -202,6 +220,9 @@ public class GuildEventHandler {
             GuildMember member = guild.getMember(player.getUUID());
             if (member != null) member.setOnlineToday(false);
         }
+
+        // Clear ally-chat toggle so it doesn't persist across sessions
+        GuildAllyCommand.clearAllyChat(player.getUUID());
     }
 
     // ── Friendly Fire Prevention ──────────────────────────────────────────────
@@ -241,6 +262,26 @@ public class GuildEventHandler {
     public void onLivingDeath(LivingDeathEvent event) {
         LivingEntity entity = event.getEntity();
         DamageSource source = event.getSource();
+
+        // ── Mission: KILL progress ──
+        if (!(entity instanceof Player) && source.getEntity() instanceof ServerPlayer killer) {
+            MinecraftServer missionServer = killer.getServer();
+            if (missionServer != null) {
+                Guild killerMissionGuild = GuildSavedData.get(missionServer).getGuildByPlayer(killer.getUUID());
+                if (killerMissionGuild != null) {
+                    ResourceLocation entityKey = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+                    if (entityKey != null) {
+                        GuildMissionsData md = GuildMissionsData.get(missionServer);
+                        List<GuildMissionEntry> completed = md.recordProgress(
+                                killerMissionGuild.getGuildId(),
+                                GuildMissionEntry.MissionType.KILL,
+                                entityKey.toString(),
+                                killer.getUUID(), 1);
+                        for (GuildMissionEntry m : completed) md.awardMission(m, killerMissionGuild, missionServer);
+                    }
+                }
+            }
+        }
 
         if (!(entity instanceof ServerPlayer victim)) return;
         if (!(source.getEntity() instanceof ServerPlayer killer)) return;
@@ -315,4 +356,88 @@ public class GuildEventHandler {
             event.setAmount((float)(event.getAmount() * mult));
         }
     }
+
+    // ── Mission: MINE tracking ────────────────────────────────────────────────
+
+    @SubscribeEvent(priority = EventPriority.NORMAL)
+    public void onBlockBreak(BlockEvent.BreakEvent event) {
+        if (!(event.getPlayer() instanceof ServerPlayer player)) return;
+        MinecraftServer server = player.getServer();
+        if (server == null) return;
+
+        Guild guild = GuildSavedData.get(server).getGuildByPlayer(player.getUUID());
+        if (guild == null) return;
+
+        ResourceLocation blockKey = ForgeRegistries.BLOCKS.getKey(event.getState().getBlock());
+        if (blockKey == null) return;
+
+        GuildMissionsData md = GuildMissionsData.get(server);
+        List<GuildMissionEntry> completed = md.recordProgress(
+                guild.getGuildId(), GuildMissionEntry.MissionType.MINE,
+                blockKey.toString(), player.getUUID(), 1);
+        for (GuildMissionEntry m : completed) md.awardMission(m, guild, server);
+    }
+
+    // ── Mission: COLLECT tracking ─────────────────────────────────────────────
+
+    @SubscribeEvent(priority = EventPriority.NORMAL)
+    public void onItemPickup(EntityItemPickupEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        MinecraftServer server = player.getServer();
+        if (server == null) return;
+
+        Guild guild = GuildSavedData.get(server).getGuildByPlayer(player.getUUID());
+        if (guild == null) return;
+
+        ItemStack stack = event.getItem().getItem();
+        ResourceLocation itemKey = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (itemKey == null) return;
+
+        GuildMissionsData md = GuildMissionsData.get(server);
+        List<GuildMissionEntry> completed = md.recordProgress(
+                guild.getGuildId(), GuildMissionEntry.MissionType.COLLECT,
+                itemKey.toString(), player.getUUID(), stack.getCount());
+        for (GuildMissionEntry m : completed) md.awardMission(m, guild, server);
+    }
+
+    // ── Chat: Guild tag + Ally chat routing ──────────────────────────────────
+
+    @SubscribeEvent(priority = EventPriority.NORMAL)
+    public void onServerChat(ServerChatEvent event) {
+        ServerPlayer player = event.getPlayer();
+        MinecraftServer server = player.getServer();
+        if (server == null) return;
+
+        GuildSavedData guildData = GuildSavedData.get(server);
+        Guild guild = guildData.getGuildByPlayer(player.getUUID());
+        if (guild == null) return;
+
+        // ── Ally chat mode (cross-guild officer channel) ──────────────────────
+        if (GuildAllyCommand.isInAllyChat(player.getUUID())) {
+            event.setCanceled(true);
+
+            // [ALLY] [TAG] PlayerName: <message>  — built via MessageUtils helpers
+            Component message = MessageUtils.allyPrefix(guild)
+                    .append(Component.literal(player.getName().getString() + ": ")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(event.getMessage());
+
+            // Broadcast to own guild members
+            MessageUtils.broadcastToGuild(guild, message, server);
+
+            // Broadcast to every allied guild's online members
+            for (UUID allyId : guild.getAlliedGuildIds()) {
+                Guild allyGuild = guildData.getGuildById(allyId);
+                if (allyGuild != null) MessageUtils.broadcastToGuild(allyGuild, message, server);
+            }
+            return;
+        }
+
+        // ── Normal chat: prepend [TAG] ────────────────────────────────────────
+        Component tag = Component.literal("[" + guild.getTag() + "] ")
+                .withStyle(Style.EMPTY.withColor(guild.getChatColor())
+                        .withBold(false).withItalic(false));
+        event.setMessage(Component.empty().append(tag).append(event.getMessage()));
+    }
+
 }

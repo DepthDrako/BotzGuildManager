@@ -14,6 +14,7 @@ import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -127,21 +128,34 @@ public class GuildUtils {
         return elapsed < 48 * 3_600_000L; // 48 hours in ms
     }
 
+    // ── Generic Cooldown Helpers ──────────────────────────────────────────────
+
+    /**
+     * Returns {@code true} if {@code key} has a recorded timestamp in {@code cooldowns}
+     * that is still within {@code cooldownMs} milliseconds.
+     */
+    public static boolean isOnCooldown(Map<UUID, Long> cooldowns, UUID key, long cooldownMs) {
+        Long last = cooldowns.get(key);
+        return last != null && System.currentTimeMillis() - last < cooldownMs;
+    }
+
+    /**
+     * Returns seconds remaining on {@code key}'s cooldown, or {@code 0} if not cooling down.
+     */
+    public static long cooldownRemainingSeconds(Map<UUID, Long> cooldowns, UUID key, long cooldownMs) {
+        Long last = cooldowns.get(key);
+        if (last == null) return 0;
+        return Math.max(0, (cooldownMs - (System.currentTimeMillis() - last)) / 1000L);
+    }
+
     // ── Home Cooldown ─────────────────────────────────────────────────────────
 
     public static boolean isOnHomeCooldown(Guild guild, UUID playerUUID) {
-        Long lastUse = guild.getHomeCooldowns().get(playerUUID);
-        if (lastUse == null) return false;
-        long cooldownMs = getEffectiveHomeCooldownMs(guild);
-        return (System.currentTimeMillis() - lastUse) < cooldownMs;
+        return isOnCooldown(guild.getHomeCooldowns(), playerUUID, getEffectiveHomeCooldownMs(guild));
     }
 
     public static long homeCooldownRemainingSeconds(Guild guild, UUID playerUUID) {
-        Long lastUse = guild.getHomeCooldowns().get(playerUUID);
-        if (lastUse == null) return 0;
-        long cooldownMs  = getEffectiveHomeCooldownMs(guild);
-        long elapsed     = System.currentTimeMillis() - lastUse;
-        return Math.max(0, (cooldownMs - elapsed) / 1000);
+        return cooldownRemainingSeconds(guild.getHomeCooldowns(), playerUUID, getEffectiveHomeCooldownMs(guild));
     }
 
     private static long getEffectiveHomeCooldownMs(Guild guild) {
